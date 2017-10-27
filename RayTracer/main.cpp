@@ -5,6 +5,13 @@
 #pragma comment(lib, "glfw3.lib")
 #pragma comment(lib, "glew32.lib")
 
+#include "Shader.h"
+
+#define GROUP_SIZE 1
+
+#define WIDTH 800
+#define HEIGHT 600
+
 //Use dedicated graphics card
 extern "C"
 {
@@ -13,6 +20,8 @@ extern "C"
 }
 
 GLFWwindow* window = nullptr;
+
+int MAX_WORK_GROUPS[3];
 
 void sharedInit() {
 	if (!window) {
@@ -74,13 +83,89 @@ void destroyOpenGL() {
 	glfwTerminate();
 }
 
-int main() {
-	init(800, 600, "Ray Tracer");
-	while (!glfwWindowShouldClose(window) && !glfwGetKey(window, GLFW_KEY_ESCAPE)) {
-		glfwPollEvents();
-		//Do compute shader things
+void generateQuad(GLuint *vertexArray, GLuint *vertexBuffer, GLuint *textureBuffer) {
+	//Generate array and buffers
+	glGenVertexArrays(1, vertexArray);
+	glGenBuffers(1, vertexBuffer);
+	glGenBuffers(1, textureBuffer);
+	GLfloat vertices[] = {
+		-1.0f, 1.0f,
+		-1.0f, -1.0f,
+		1.0f, 1.0f,
+		1.0f, -1.0f
+	};
+	GLfloat textures[] = {
+		0.0f, 1.0f,
+		0.0f, 0.0f,
+		1.0f, 1.0f,
+		1.0f, 0.0f
+	};
+	glBindVertexArray(*vertexArray);
+	//Pass vertices
+	glEnableVertexAttribArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, *vertexBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), &vertices, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+	//Pass uvs
+	glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, *textureBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(textures), &textures, GL_STATIC_DRAW);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+	glBindVertexArray(0);
+}
 
+int main() {
+	//Initialise OpenGL
+	init(WIDTH, HEIGHT, "Ray Tracer");
+	//Get number of work groups available
+	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &MAX_WORK_GROUPS[0]);
+	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &MAX_WORK_GROUPS[1]);
+	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &MAX_WORK_GROUPS[2]);
+	std::cout << MAX_WORK_GROUPS[0] << ", " << MAX_WORK_GROUPS[1] << ", " << MAX_WORK_GROUPS[2] << " Work Groups available\n";
+	//Create compute shader
+	Shader compute("shaders/comp.glsl");
+	//Set texture output
+	GLuint tex;
+	glGenTextures(1, &tex);
+	glBindTexture(GL_TEXTURE_2D, tex);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, WIDTH, HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+	glBindImageTexture(0, tex, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+	glUseProgram(compute.getProgram());
+	glUniform1i(glGetUniformLocation(compute.getProgram(), "imgOut"), 0);
+	glUseProgram(0);
+	//Create Quad output
+	GLuint vertexArray, vertexBuffer, textureBuffer;
+	generateQuad(&vertexArray, &vertexBuffer, &textureBuffer);
+	Shader quad("shaders/quad.vert", "shaders/quad.frag");
+	glUseProgram(quad.getProgram());
+	glUniform1f(glGetUniformLocation(quad.getProgram(), "imgOut"), 0);
+	glUseProgram(0);
+	//Ensure correct texture is being used for output
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, tex);
+	//Timing variables
+	double time = 0, lastTime = 0, dt = 0;
+	//Main render loop
+	while (!glfwWindowShouldClose(window) && !glfwGetKey(window, GLFW_KEY_ESCAPE)) {
+		//Calculate time elapsed
+		time = glfwGetTime();
+		dt = time - lastTime;
+		lastTime = time;
+		//Poll events
+		glfwPollEvents();
+		//Execute compute shader
+		glUseProgram(compute.getProgram());
+		//glUniform1f(glGetUniformLocation(computeHandle, "roll"), (float)frame*0.01f);
+		glMemoryBarrier(GL_ALL_BARRIER_BITS);
+		glDispatchCompute(WIDTH, HEIGHT, 1);
+		glMemoryBarrier(GL_ALL_BARRIER_BITS);
 		//Render result to screen
+		glUseProgram(quad.getProgram());
+		glBindVertexArray(vertexArray);
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		glBindVertexArray(0);
 		glfwSwapBuffers(window);
 	}
 	return 0;
