@@ -27,4 +27,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\comp.glsl" />
+    <None Include="glew32.dll" />
+    <None Include="glfw3.dll" />
+  </ItemGroup>
 </Project>
