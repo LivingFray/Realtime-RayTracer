@@ -17,9 +17,10 @@ layout(std140, binding = 4) buffer SphereBuffer {
 };
 
 //TODO: Camera settings
-uniform float twiceTanFovY; // = 2 * tan(FOVy / 2)
+uniform float twiceTanFovY;
 uniform float cameraWidth;
 uniform float cameraHeight;
+uniform mat4 cameraMatrix;
 
 vec3 getCollision(vec3 rayOrigin, vec3 rayDirection);
 
@@ -28,22 +29,15 @@ void main(){
 	ivec2 pixelPos = ivec2(gl_GlobalInvocationID.xy);
 	ivec2 screenSize = imageSize(imgOut);
 	//Calculate ray
-	//Use view matrix to set origin to 0 for simplicity
-	vec3 rayOrigin = vec3(0.0, 0.0, 0.0);
+	//Use view matrix to set origin
+	vec3 rayOrigin = vec3(cameraMatrix[3]);
 	//Convert pixel position to world space
-	float aspectratio = cameraWidth / cameraHeight;
-	//float x = (2 * ((pixelPos.x + 0.5) / cameraWidth) - 1) * tanFovY * aspectratio;
-	//float y = (1 - 2 * ((pixelPos.y + 0.5) / cameraHeight)) * tanFovY;
-	//float z = 1.0;
 	float x = cameraWidth * (pixelPos.x + 0.5) / screenSize.x - cameraWidth * 0.5;
 	float y = cameraHeight * (pixelPos.y + 0.5) / screenSize.y - cameraHeight * 0.5;
 	float z = cameraHeight / twiceTanFovY;
-	vec3 rayDirection = normalize(vec3(x,y,z));
+	//Apply view matrix to direction
+	vec3 rayDirection = mat3(cameraMatrix) * normalize(vec3(x,y,z));
 	//Fire ray
-	//rayOrigin.x = cameraWidth * 2 * pixelPos.x / screenSize.x - cameraWidth;
-	//rayOrigin.y = cameraHeight * 2 * pixelPos.y / screenSize.y - cameraHeight;
-	//rayOrigin.z = 0;
-	//vec3 rayDirection = vec3(0,0,1);
 	vec3 pixelColour = getCollision(rayOrigin, rayDirection);
 	imageStore(imgOut, pixelPos, vec4(pixelColour, 1.0));
 }

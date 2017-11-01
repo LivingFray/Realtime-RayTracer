@@ -2,6 +2,7 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <glm\glm.hpp>
+#include <glm\gtc\matrix_transform.hpp>
 #include <vector>
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glfw3.lib")
@@ -160,10 +161,12 @@ int main() {
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, sphereSSBO);
 
 	//Set camera properties
+	glm::mat4 camMat(1.0f);
 	glUseProgram(compute.getProgram());
 	glUniform1f(glGetUniformLocation(compute.getProgram(), "twiceTanFovY"), tanf(3.1415926535f * FOV / 360.0f));
 	glUniform1f(glGetUniformLocation(compute.getProgram(), "cameraWidth"), 4.0f);
 	glUniform1f(glGetUniformLocation(compute.getProgram(), "cameraHeight"), 3.0f);
+	glUniformMatrix4fv(glGetUniformLocation(compute.getProgram(), "cameraMatrix"), 1, GL_FALSE, &camMat[0][0]);
 	glUseProgram(0);
 
 	//Set texture output
@@ -193,6 +196,9 @@ int main() {
 	//Timing variables
 	double time = 0, lastTime = 0, dt = 0;
 
+	//Shenanigans
+	float ang = 0;
+
 	//Main render loop
 	while (!glfwWindowShouldClose(window) && !glfwGetKey(window, GLFW_KEY_ESCAPE)) {
 		//Calculate time elapsed
@@ -201,8 +207,17 @@ int main() {
 		lastTime = time;
 		//Poll events
 		glfwPollEvents();
+
+		//Shenanigans
+		ang += dt;
+		camMat = glm::rotate(glm::mat4(1.0f), ang, glm::vec3(0.0f, 1.0f, 0.0f));
+
+
 		//Execute compute shader
 		glUseProgram(compute.getProgram());
+		glUniformMatrix4fv(glGetUniformLocation(compute.getProgram(), "cameraMatrix"), 1, GL_FALSE, &camMat[0][0]);
+		//Ensure data is updated (use all barrier bits because I can't be bothered to check which exact ones I need)
+		glMemoryBarrier(GL_ALL_BARRIER_BITS);
 		glDispatchCompute(WIDTH, HEIGHT, 1);
 		//Wait for image to be fully generated
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
