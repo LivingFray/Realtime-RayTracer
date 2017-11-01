@@ -1,6 +1,8 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <glm\glm.hpp>
+#include <vector>
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glfw3.lib")
 #pragma comment(lib, "glew32.lib")
@@ -11,6 +13,8 @@
 
 #define WIDTH 800
 #define HEIGHT 600
+
+#define FOV 90
 
 //Use dedicated graphics card
 extern "C"
@@ -114,16 +118,54 @@ void generateQuad(GLuint *vertexArray, GLuint *vertexBuffer, GLuint *textureBuff
 	glBindVertexArray(0);
 }
 
+//Due to the wonders of byte alignment pad everything to be 4bytes
+struct Sphere {
+	glm::vec3 pos;
+	float radius;
+	glm::vec3 colour;
+	float padding;
+};
+
+
 int main() {
 	//Initialise OpenGL
 	init(WIDTH, HEIGHT, "Ray Tracer");
+
 	//Get number of work groups available
 	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &MAX_WORK_GROUPS[0]);
 	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &MAX_WORK_GROUPS[1]);
 	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &MAX_WORK_GROUPS[2]);
 	std::cout << MAX_WORK_GROUPS[0] << ", " << MAX_WORK_GROUPS[1] << ", " << MAX_WORK_GROUPS[2] << " Work Groups available\n";
+
 	//Create compute shader
 	Shader compute("shaders/comp.glsl");
+
+	//Create test input
+	std::vector<Sphere> spheres;
+	for (int x = 0; x < 11; x++) {
+		for (int y = 0; y < 11; y++) {
+			struct Sphere newS;
+			newS.pos = glm::vec3(static_cast<float>(x)-5.0f, static_cast<float>(y)-5.0f, 10.0f);
+			newS.radius = 1.0f;//static_cast<float>(x + y) / 20.0f;
+			newS.colour = glm::vec3(static_cast<float>(x)/10.0f, static_cast<float>(y)/10.0f, 0.0f);
+			spheres.push_back(newS);
+		}
+	}
+
+	//Bind test input
+	GLuint sphereSSBO;
+	glGenBuffers(1, &sphereSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(Sphere), &spheres[0], GL_STATIC_DRAW);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, sphereSSBO);
+
+	//Set camera properties
+	glUseProgram(compute.getProgram());
+	glUniform1f(glGetUniformLocation(compute.getProgram(), "twiceTanFovY"), tanf(3.1415926535f * FOV / 360.0f));
+	glUniform1f(glGetUniformLocation(compute.getProgram(), "cameraWidth"), 4.0f);
+	glUniform1f(glGetUniformLocation(compute.getProgram(), "cameraHeight"), 3.0f);
+	glUseProgram(0);
+
 	//Set texture output
 	GLuint tex;
 	glGenTextures(1, &tex);
@@ -135,6 +177,7 @@ int main() {
 	glUseProgram(compute.getProgram());
 	glUniform1i(glGetUniformLocation(compute.getProgram(), "imgOut"), 0);
 	glUseProgram(0);
+
 	//Create Quad output
 	GLuint vertexArray, vertexBuffer, textureBuffer;
 	generateQuad(&vertexArray, &vertexBuffer, &textureBuffer);
@@ -142,11 +185,14 @@ int main() {
 	glUseProgram(quad.getProgram());
 	glUniform1f(glGetUniformLocation(quad.getProgram(), "imgOut"), 0);
 	glUseProgram(0);
+
 	//Ensure correct texture is being used for output
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, tex);
+
 	//Timing variables
 	double time = 0, lastTime = 0, dt = 0;
+
 	//Main render loop
 	while (!glfwWindowShouldClose(window) && !glfwGetKey(window, GLFW_KEY_ESCAPE)) {
 		//Calculate time elapsed
