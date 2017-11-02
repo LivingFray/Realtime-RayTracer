@@ -119,6 +119,71 @@ void generateQuad(GLuint *vertexArray, GLuint *vertexBuffer, GLuint *textureBuff
 	glBindVertexArray(0);
 }
 
+double horizontalAngle = 3.1415926f, verticalAngle = 0.0f;
+glm::vec3 camPos;
+#define MOUSE_SPEED 0.005
+#define CAMERA_SPEED 1.0f
+glm::mat4 camMat(1.0f);
+
+
+void updateCamera(double dt) {
+	double mx, my;
+	int w, h;
+	glfwGetCursorPos(window, &mx, &my);
+	glfwGetWindowSize(window, &w, &h);
+	mx -= static_cast<double>(w) / 2.0;
+	my -= static_cast<double>(h) / 2.0;
+	glfwSetCursorPos(window,
+		static_cast<double>(w) / 2.0,
+		static_cast<double>(h) / 2.0
+	);
+
+	horizontalAngle += mx * MOUSE_SPEED;
+	verticalAngle += my * MOUSE_SPEED;
+
+	if (horizontalAngle  > glm::two_pi<double>()) {
+		horizontalAngle -= glm::two_pi<double>();
+	}
+	if (horizontalAngle  < 0.0) {
+		horizontalAngle += glm::two_pi<double>();
+	}
+	if (verticalAngle > glm::half_pi<double>()) {
+		verticalAngle = glm::half_pi<double>();
+	}
+	if (verticalAngle < -glm::half_pi<double>()) {
+		verticalAngle = -glm::half_pi<double>();
+	}
+
+	glm::vec3 direction(
+		cos(verticalAngle) * sin(horizontalAngle),
+		sin(verticalAngle),
+		cos(verticalAngle) * cos(horizontalAngle)
+	);
+
+	glm::vec3 right = glm::vec3(
+		sin(horizontalAngle - 3.14f / 2.0f),
+		0,
+		cos(horizontalAngle - 3.14f / 2.0f)
+	);
+
+	glm::vec3 up = glm::cross(right, direction);
+
+	if (glfwGetKey(window, GLFW_KEY_I)) {
+		camPos -= direction * CAMERA_SPEED;
+	}
+	if (glfwGetKey(window, GLFW_KEY_K)) {
+		camPos += direction * CAMERA_SPEED;
+	}
+	if (glfwGetKey(window, GLFW_KEY_J)) {
+		camPos -= right * CAMERA_SPEED;
+	}
+	if (glfwGetKey(window, GLFW_KEY_L)) {
+		camPos += right * CAMERA_SPEED;
+	}
+	//Because of how I apply the view matrix it must be inverted
+	camMat = glm::inverse(glm::lookAt(camPos, camPos + direction, up));
+}
+
 //Due to the wonders of byte alignment pad everything to be 4bytes
 struct Sphere {
 	glm::vec3 pos;
@@ -143,8 +208,8 @@ int main() {
 
 	//Create test input
 	std::vector<Sphere> spheres;
-	for (int x = 0; x < 11; x++) {
-		for (int y = 0; y < 11; y++) {
+	for (int x = 0; x < 10; x++) {
+		for (int y = 0; y < 10; y++) {
 			struct Sphere newS;
 			newS.pos = glm::vec3(static_cast<float>(x)-5.0f, static_cast<float>(y)-5.0f, 10.0f);
 			newS.radius = 1.0f;//static_cast<float>(x + y) / 20.0f;
@@ -161,7 +226,6 @@ int main() {
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, sphereSSBO);
 
 	//Set camera properties
-	glm::mat4 camMat(1.0f);
 	glUseProgram(compute.getProgram());
 	glUniform1f(glGetUniformLocation(compute.getProgram(), "twiceTanFovY"), tanf(3.1415926535f * FOV / 360.0f));
 	glUniform1f(glGetUniformLocation(compute.getProgram(), "cameraWidth"), 4.0f);
@@ -195,9 +259,9 @@ int main() {
 
 	//Timing variables
 	double time = 0, lastTime = 0, dt = 0;
-
-	//Shenanigans
-	float ang = 0;
+	int frames = 0;
+	double timeSincePrinted = 0;
+#define FRAME_EVERY 10.0
 
 	//Main render loop
 	while (!glfwWindowShouldClose(window) && !glfwGetKey(window, GLFW_KEY_ESCAPE)) {
@@ -205,13 +269,21 @@ int main() {
 		time = glfwGetTime();
 		dt = time - lastTime;
 		lastTime = time;
+
+		//Print Frames per second
+		frames++;
+		timeSincePrinted += dt;
+		if (timeSincePrinted > FRAME_EVERY) {
+			std::cout << static_cast<float>(frames) / FRAME_EVERY << std::endl;
+			frames = 0;
+			timeSincePrinted -= FRAME_EVERY;
+		}
+
 		//Poll events
 		glfwPollEvents();
 
-		//Shenanigans
-		ang += dt;
-		camMat = glm::rotate(glm::mat4(1.0f), ang, glm::vec3(0.0f, 1.0f, 0.0f));
-
+		//Camera
+		updateCamera(dt);
 
 		//Execute compute shader
 		glUseProgram(compute.getProgram());
