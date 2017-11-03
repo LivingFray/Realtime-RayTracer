@@ -125,7 +125,7 @@ double horizontalAngle = 3.1415926, verticalAngle = 0.0;
 bool firstMove = true;
 glm::vec3 camPos;
 #define MOUSE_SPEED 0.005
-#define CAMERA_SPEED 1.0f
+#define CAMERA_SPEED 0.1f
 glm::mat4 camMat(1.0f);
 
 
@@ -200,6 +200,18 @@ struct Sphere {
 	float padding;
 };
 
+struct Light {
+	glm::vec3 pos;
+	float paddingA;
+	glm::vec3 colour;
+	float paddingB;
+	float constant;
+	float linear;
+	float quadratic;
+	//Pre calc maximum distance light is visible from
+	float maxDist;
+};
+
 
 int main() {
 	//Initialise OpenGL
@@ -221,9 +233,22 @@ int main() {
 			struct Sphere newS;
 			newS.pos = glm::vec3(static_cast<float>(x * 2)-2.5f, static_cast<float>(y * 2)-2.5f, 10.0f);
 			newS.radius = 1.0f;//static_cast<float>(x + y) / 20.0f;
-			newS.colour = glm::vec3(static_cast<float>(x)/5.0f, static_cast<float>(y)/5.0f, 0.0f);
+			//newS.colour = glm::vec3(static_cast<float>(x)/5.0f, static_cast<float>(y)/5.0f, 0.0f);
+			newS.colour = glm::vec3(1.0f, 0.0f, 0.0f);
 			spheres.push_back(newS);
 		}
+	}
+	std::vector<Light> lights;
+	{
+		struct Light newL;
+		newL.pos = glm::vec3(0.0f, 10.0f, 0.0f);
+		newL.colour = glm::vec3(1.0f, 1.0f, 1.0f);
+		newL.constant = 1.0f;
+		newL.linear = 0.09f;
+		newL.quadratic = 0.032f;
+		//Calc cutoff
+		newL.maxDist = 50.0f;
+		lights.push_back(newL);
 	}
 
 	//Bind test input
@@ -231,7 +256,14 @@ int main() {
 	glGenBuffers(1, &sphereSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereSSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(Sphere), &spheres[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, sphereSSBO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, sphereSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	GLuint lightSSBO;
+	glGenBuffers(1, &lightSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, lights.size() * sizeof(Light), &lights[0], GL_STATIC_DRAW);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, lightSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
 	//Set camera properties
 	glUseProgram(compute.getProgram());
