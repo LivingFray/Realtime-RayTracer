@@ -12,8 +12,10 @@
 
 #define GROUP_SIZE 1
 
-#define WIDTH 800
-#define HEIGHT 600
+#define WIDTH 1280
+#define HEIGHT 720
+#define CAMERA_WIDTH 16.0f
+#define CAMERA_HEIGHT 9.0f
 
 #define FOV 90
 
@@ -119,7 +121,8 @@ void generateQuad(GLuint *vertexArray, GLuint *vertexBuffer, GLuint *textureBuff
 	glBindVertexArray(0);
 }
 
-double horizontalAngle = 3.1415926f, verticalAngle = 0.0f;
+double horizontalAngle = 3.1415926, verticalAngle = 0.0;
+bool firstMove = true;
 glm::vec3 camPos;
 #define MOUSE_SPEED 0.005
 #define CAMERA_SPEED 1.0f
@@ -137,6 +140,11 @@ void updateCamera(double dt) {
 		static_cast<double>(w) / 2.0,
 		static_cast<double>(h) / 2.0
 	);
+	if (firstMove) {
+		mx = 0.0;
+		my = 0.0;
+		firstMove = false;
+	}
 
 	horizontalAngle += mx * MOUSE_SPEED;
 	verticalAngle += my * MOUSE_SPEED;
@@ -208,12 +216,12 @@ int main() {
 
 	//Create test input
 	std::vector<Sphere> spheres;
-	for (int x = 0; x < 10; x++) {
-		for (int y = 0; y < 10; y++) {
+	for (int x = 0; x < 5; x++) {
+		for (int y = 0; y < 5; y++) {
 			struct Sphere newS;
-			newS.pos = glm::vec3(static_cast<float>(x)-5.0f, static_cast<float>(y)-5.0f, 10.0f);
+			newS.pos = glm::vec3(static_cast<float>(x * 2)-2.5f, static_cast<float>(y * 2)-2.5f, 10.0f);
 			newS.radius = 1.0f;//static_cast<float>(x + y) / 20.0f;
-			newS.colour = glm::vec3(static_cast<float>(x)/10.0f, static_cast<float>(y)/10.0f, 0.0f);
+			newS.colour = glm::vec3(static_cast<float>(x)/5.0f, static_cast<float>(y)/5.0f, 0.0f);
 			spheres.push_back(newS);
 		}
 	}
@@ -228,8 +236,8 @@ int main() {
 	//Set camera properties
 	glUseProgram(compute.getProgram());
 	glUniform1f(glGetUniformLocation(compute.getProgram(), "twiceTanFovY"), tanf(3.1415926535f * FOV / 360.0f));
-	glUniform1f(glGetUniformLocation(compute.getProgram(), "cameraWidth"), 4.0f);
-	glUniform1f(glGetUniformLocation(compute.getProgram(), "cameraHeight"), 3.0f);
+	glUniform1f(glGetUniformLocation(compute.getProgram(), "cameraWidth"), CAMERA_WIDTH);
+	glUniform1f(glGetUniformLocation(compute.getProgram(), "cameraHeight"), CAMERA_HEIGHT);
 	glUniformMatrix4fv(glGetUniformLocation(compute.getProgram(), "cameraMatrix"), 1, GL_FALSE, &camMat[0][0]);
 	glUseProgram(0);
 
@@ -262,6 +270,12 @@ int main() {
 	int frames = 0;
 	double timeSincePrinted = 0;
 #define FRAME_EVERY 10.0
+
+	//Disable VSYNC
+	glfwSwapInterval(0);
+
+	//Hide cursor
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 
 	//Main render loop
 	while (!glfwWindowShouldClose(window) && !glfwGetKey(window, GLFW_KEY_ESCAPE)) {
