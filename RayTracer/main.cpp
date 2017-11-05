@@ -197,7 +197,7 @@ struct Sphere {
 	glm::vec3 pos;
 	float radius;
 	glm::vec3 colour;
-	float padding;
+	float shininess;
 };
 
 struct Light {
@@ -235,6 +235,7 @@ int main() {
 			newS.radius = 1.0f;//static_cast<float>(x + y) / 20.0f;
 			//newS.colour = glm::vec3(static_cast<float>(x)/5.0f, static_cast<float>(y)/5.0f, 0.0f);
 			newS.colour = glm::vec3(1.0f, 0.0f, 0.0f);
+			newS.shininess = 64.0f;
 			spheres.push_back(newS);
 		}
 	}

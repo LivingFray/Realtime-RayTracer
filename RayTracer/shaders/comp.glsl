@@ -13,7 +13,7 @@ struct Sphere {
 	vec3 pos;
 	float radius;
 	vec3 colour;
-	float padding;
+	float shininess;
 };
 
 //Fun fact, not padding vec3s and putting it at the end breaks everything
@@ -73,8 +73,8 @@ void main(){
 //Finds the colour at the point the ray hits
 vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 	float d = -1;
-	vec3 colour = vec3(0.0, 0.0, 0.0);
 	vec3 hitNorm;
+	Sphere hit;
 	//Loop through each sphere
 	for(int i=0; i<spheres.length(); i++){
 		Sphere s = spheres[i];
@@ -104,18 +104,17 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 			}
 			if(closest >= 0.0 && (d<0.0 || d>closest)){
 				d = closest;
-				colour = s.colour;
-				hitNorm = s.pos; //Slightly faster to store position and convert to normal later
+				hit = s;
 			}
 		}
 	}
 	//Bail out early
 	if(d < 0){
-		return colour;
+		return vec3(0.0, 0.0, 0.0);
 	}
 	vec3 lightColour = vec3(0.0, 0.0, 0.0);//Add ambient here?
 	vec3 hitAt = rayOrigin + d * rayDirection;
-	hitNorm = normalize(hitAt - hitNorm);
+	hitNorm = normalize(hitAt - hit.pos);
 	//Loop through each light to calculate lighting
 	for(int i=0;i<lights.length(); i++){
 		Light l = lights[i];
@@ -126,8 +125,9 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 		//Also check for shadows here
 		if(dist < l.maxDist && !hasCollision(hitAt, lightDir, BIAS)) {
 			float diff = max(0.0, dot(hitNorm, lightDir));
-			float spec = 0.0;
-			lightColour += colour * diff * l.colour;
+			vec3 halfwayDir = normalize(lightDir - rayDirection);
+			float spec = pow(max(dot(hitNorm, halfwayDir), 0.0), hit.shininess);;
+			lightColour += (hit.colour * diff + spec) * l.colour;
 		}
 	}
 	return lightColour;
