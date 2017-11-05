@@ -200,6 +200,15 @@ struct Sphere {
 	float shininess;
 };
 
+struct Plane {
+	glm::vec3 pos;
+	float shininess;
+	glm::vec3 norm;
+	float paddingA;
+	glm::vec3 colour;
+	float paddingB;
+};
+
 struct Light {
 	glm::vec3 pos;
 	float paddingA;
@@ -231,13 +240,23 @@ int main() {
 	for (int x = 0; x < 5; x++) {
 		for (int y = 0; y < 5; y++) {
 			struct Sphere newS;
-			newS.pos = glm::vec3(static_cast<float>(x * 2)-2.5f, static_cast<float>(y * 2)-2.5f, 10.0f);
+			newS.pos = glm::vec3(static_cast<float>(x * 2)-2.5f, 1.0f, static_cast<float>(y * 2)-2.5f);
 			newS.radius = 1.0f;//static_cast<float>(x + y) / 20.0f;
 			//newS.colour = glm::vec3(static_cast<float>(x)/5.0f, static_cast<float>(y)/5.0f, 0.0f);
 			newS.colour = glm::vec3(1.0f, 0.0f, 0.0f);
 			newS.shininess = 64.0f;
 			spheres.push_back(newS);
 		}
+	}
+	std::vector<Plane> planes;
+	{
+		struct Plane newP;
+		newP.pos = glm::vec3(0.0f, 0.0f, 0.0f);
+		newP.norm = glm::vec3(0.0f, 1.0f, 0.0f);
+		newP.colour = glm::vec3(0.0f, 1.0f, 0.0f);
+		//Calc cutoff
+		newP.shininess = 50.0f;
+		planes.push_back(newP);
 	}
 	std::vector<Light> lights;
 	{
@@ -259,11 +278,17 @@ int main() {
 	glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(Sphere), &spheres[0], GL_STATIC_DRAW);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, sphereSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	GLuint planeSSBO;
+	glGenBuffers(1, &planeSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, planeSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, planes.size() * sizeof(Plane), &planes[0], GL_STATIC_DRAW);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, planeSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 	GLuint lightSSBO;
 	glGenBuffers(1, &lightSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightSSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, lights.size() * sizeof(Light), &lights[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, lightSSBO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, lightSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
 	//Set camera properties

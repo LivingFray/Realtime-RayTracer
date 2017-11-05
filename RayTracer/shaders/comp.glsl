@@ -16,6 +16,15 @@ struct Sphere {
 	float shininess;
 };
 
+struct Plane {
+	vec3 pos;
+	float shininess;
+	vec3 norm;
+	float paddingA;
+	vec3 colour;
+	float paddingB;
+};
+
 //Fun fact, not padding vec3s and putting it at the end breaks everything
 
 struct Light {
@@ -37,7 +46,11 @@ layout(std140, binding = 1) buffer SphereBuffer {
 	Sphere spheres[];
 };
 
-layout(std140, binding = 2) buffer LightBuffer {
+layout(std140, binding = 2) buffer PlaneBuffer {
+	Plane planes[];
+};
+
+layout(std140, binding = 3) buffer LightBuffer {
 	Light lights[];
 };
 
@@ -73,8 +86,10 @@ void main(){
 //Finds the colour at the point the ray hits
 vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 	float d = -1;
+	vec3 hitAt;
 	vec3 hitNorm;
-	Sphere hit;
+	vec3 hitColour;
+	float hitShininess;
 	//Loop through each sphere
 	for(int i=0; i<spheres.length(); i++){
 		Sphere s = spheres[i];
@@ -104,7 +119,32 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 			}
 			if(closest >= 0.0 && (d<0.0 || d>closest)){
 				d = closest;
-				hit = s;
+				hitAt = rayOrigin + d * rayDirection;
+				hitNorm = normalize(hitAt - s.pos);
+				hitColour = s.colour;
+				hitShininess = s.shininess;
+			}
+		}
+	}
+	//Loop through each plane
+	for(int i=0; i<planes.length(); i++){
+		Plane p = planes[i];
+		// P = rO + t(rD)
+		// 0 = N . (P - p0)
+		// 0 = N . (p0 - rO + t(rD))
+		// t = (p0 - rO).N / (rD.N)
+		// If rD.N = 0: Parallel (For this treat as no intersection)
+		// If t < 0: Behind ray origin
+		float rDN = dot(rayDirection, p.norm);
+		//Check not zero (or very close to)
+		if(abs(rDN)>0.0001){
+			float t = dot((p.pos - rayOrigin), p.norm) / rDN;
+			if(t > 0.0 && (d < 0.0 || t < d)){
+				d = t;
+				hitAt = rayOrigin + d * rayDirection;
+				hitNorm = p.norm;
+				hitShininess = p.shininess;
+				hitColour = p.colour;
 			}
 		}
 	}
@@ -113,8 +153,6 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 		return vec3(0.0, 0.0, 0.0);
 	}
 	vec3 lightColour = vec3(0.0, 0.0, 0.0);//Add ambient here?
-	vec3 hitAt = rayOrigin + d * rayDirection;
-	hitNorm = normalize(hitAt - hit.pos);
 	//Loop through each light to calculate lighting
 	for(int i=0;i<lights.length(); i++){
 		Light l = lights[i];
@@ -126,14 +164,33 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 		if(dist < l.maxDist && !hasCollision(hitAt, lightDir, BIAS)) {
 			float diff = max(0.0, dot(hitNorm, lightDir));
 			vec3 halfwayDir = normalize(lightDir - rayDirection);
-			float spec = pow(max(dot(hitNorm, halfwayDir), 0.0), hit.shininess);;
-			lightColour += (hit.colour * diff + spec) * l.colour;
+			float spec = pow(max(dot(hitNorm, halfwayDir), 0.0), hitShininess);;
+			lightColour += (hitColour * diff + spec) * l.colour;
 		}
 	}
 	return lightColour;
 }
 
 bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist){
+	//Loop through each plane
+	for(int i=0; i<planes.length(); i++){
+		Plane p = planes[i];
+		// P = rO + t(rD)
+		// 0 = N . (P - p0)
+		// 0 = N . (p0 - rO + t(rD))
+		// t = (p0 - rO).N / (rD.N)
+		// If rD.N = 0: Parallel (For this treat as no intersection)
+		// If d < 0: Behind ray origin
+		float rDN = dot(rayDirection, p.norm);
+		//Check not zero (or very close to)
+		if(abs(rDN)>0.0001){
+			float t = dot((p.pos - rayOrigin), p.norm) / rDN;
+			if(t > BIAS){
+				return true;
+			}
+		}
+	}
+	//Loop through each sphere
 	for(int i=0; i<spheres.length(); i++){
 		Sphere s = spheres[i];
 		// P = rO + t(rD) //Ray equation
@@ -155,9 +212,7 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist){
 		if(disc >= 0.0){
 			float rt = sqrt(disc);
 			float first = -b + rt;
-			float second = -b - rt;
-			float closest = max(first, second);
-			if(closest >= minDist){
+			if(first >= minDist){
 				return true;
 			}
 		}
