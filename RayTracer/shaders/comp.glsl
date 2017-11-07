@@ -137,7 +137,7 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 		// If t < 0: Behind ray origin
 		float rDN = dot(rayDirection, p.norm);
 		//Check not zero (or very close to)
-		if(abs(rDN)>0.0001){
+		if(abs(rDN)>0.0001 && dot(-rayDirection, p.norm) > 0.0) {
 			float t = dot((p.pos - rayOrigin), p.norm) / rDN;
 			if(t > 0.0 && (d < 0.0 || t < d)){
 				d = t;
@@ -164,8 +164,10 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 		if(dist < l.maxDist && !hasCollision(hitAt, lightDir, BIAS)) {
 			float diff = max(0.0, dot(hitNorm, lightDir));
 			vec3 halfwayDir = normalize(lightDir - rayDirection);
-			float spec = pow(max(dot(hitNorm, halfwayDir), 0.0), hitShininess);;
-			lightColour += (hitColour * diff + spec) * l.colour;
+			float spec = pow(max(dot(hitNorm, halfwayDir), 0.0), hitShininess);
+			float att = 1.0 / (l.constant + l.linear * dist + 
+    		    l.quadratic * (dist * dist)); 
+			lightColour += (hitColour * diff + spec) * l.colour * att;
 		}
 	}
 	return lightColour;
