@@ -7,6 +7,10 @@ layout(local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE, local_size_z = 1) i
 //Prevent reflected rays colliding with the object they originated from
 #define BIAS 0.001
 
+#define NUM_SHADOW_RAYS 3
+
+#define SKY_COLOR vec3(0.529, 0.808, 0.980)
+
 //Structures must align to a multiple of 4 bytes
 
 struct Sphere {
@@ -29,9 +33,9 @@ struct Plane {
 
 struct Light {
 	vec3 pos;
-	float paddingA;
+	float isDirectional;
 	vec3 colour;
-	float paddingB;
+	float radius;
 	float constant;
 	float linear;
 	float quadratic;
@@ -59,6 +63,9 @@ uniform float cameraWidth;
 uniform float cameraHeight;
 uniform mat4 cameraMatrix;
 
+//Applies lighting to the pixel at 1/fraction the normal brightness
+void applyLighting(inout vec3 lightColour, vec3 lightDir, vec3 hitNorm, vec3 rayDirection, Light l, float hitShininess, vec3 hitColour, float dist, float fraction);
+
 //Gets the pixel colour where the ray hits
 vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection);
 
@@ -85,6 +92,9 @@ void main(){
 
 //Finds the colour at the point the ray hits
 vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
+	//
+	//Initial ray intersections
+	//
 	float d = -1;
 	vec3 hitAt;
 	vec3 hitNorm;
@@ -148,29 +158,99 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 			}
 		}
 	}
-	//Bail out early
+	//No collisions just draw the sky
 	if(d < 0){
-		return vec3(0.0, 0.0, 0.0);
+		return SKY_COLOR;
 	}
+	//
+	//Lighting
+	//
 	vec3 lightColour = vec3(0.0, 0.0, 0.0);//Add ambient here?
 	//Loop through each light to calculate lighting
 	for(int i=0;i<lights.length(); i++){
 		Light l = lights[i];
-		vec3 lightDir = l.pos - hitAt;
+		vec3 lightDir;
+		if(l.isDirectional>0.0){
+			lightDir = -l.pos;
+		} else {
+			lightDir = l.pos - hitAt;
+		}
 		float dist = length(lightDir);
 		lightDir /= dist; //Normalize
-		//For efficiency don't calculate affect of distant light sources
+		//For efficiency don't calculate effect of distant light sources
 		//Also check for shadows here
-		if(dist < l.maxDist && !hasCollision(hitAt, lightDir, BIAS)) {
-			float diff = max(0.0, dot(hitNorm, lightDir));
-			vec3 halfwayDir = normalize(lightDir - rayDirection);
-			float spec = pow(max(dot(hitNorm, halfwayDir), 0.0), hitShininess);
-			float att = 1.0 / (l.constant + l.linear * dist + 
-    		    l.quadratic * (dist * dist)); 
-			lightColour += (hitColour * diff + spec) * l.colour * att;
+		if((l.isDirectional>0.0 || dist < l.maxDist)) {
+#if (NUM_SHADOW_RAYS <= 0)
+			applyLighting(lightColour, lightDir, hitNorm, rayDirection, l, hitShininess, hitColour, 1.0);
+#endif
+#if ((NUM_SHADOW_RAYS > 0) && (NUM_SHADOW_RAYS % 2 == 1))
+			if(!hasCollision(hitAt, lightDir, BIAS)){
+				if(l.isDirectional>0.0) {
+					applyLighting(lightColour, lightDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, 1.0);
+				} else {
+					applyLighting(lightColour, lightDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+				}
+			}
+#endif
+/*
+Range from -LR to +LR
+Fire ray in centre
+For NUM_SHADOW_RAYS/2 Fire ray in neg from centre at interval of LR / NUM_SHADOW_RAYS/2 
+*/
+#if (NUM_SHADOW_RAYS > 1)
+			if(l.isDirectional <= 0.0){
+				vec3 lightUp = vec3(0.0, 1.0, 0.0);
+				vec3 lightRight = cross(lightDir, lightUp);
+				lightUp = cross(lightRight, lightDir);
+				int halfNumRays = NUM_SHADOW_RAYS/2;
+				lightRight *= l.radius / halfNumRays;
+				lightUp *= l.radius / halfNumRays;
+				for(int x = 1; x <= halfNumRays; x++) {
+					for(int y = 1; y <= halfNumRays; y++) {
+						vec3 newDir = (l.pos + lightRight * x + lightUp * y) - hitAt;
+						dist = length(newDir);
+						newDir /= dist;
+						if(!hasCollision(hitAt, newDir, BIAS)){
+							applyLighting(lightColour, newDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+						}
+						newDir = (l.pos - lightRight * x + lightUp * y) - hitAt;
+						dist = length(newDir);
+						newDir /= dist;
+						if(!hasCollision(hitAt, newDir, BIAS)){
+							applyLighting(lightColour, newDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+						}
+						newDir = (l.pos + lightRight * x - lightUp * y) - hitAt;
+						dist = length(newDir);
+						newDir /= dist;
+						if(!hasCollision(hitAt, newDir, BIAS)){
+							applyLighting(lightColour, newDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+						}
+						newDir = (l.pos - lightRight * x - lightUp * y) - hitAt;
+						dist = length(newDir);
+						newDir /= dist;
+						if(!hasCollision(hitAt, newDir, BIAS)){
+							applyLighting(lightColour, newDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+						}
+					}
+				}
+			}
+#endif
 		}
 	}
 	return lightColour;
+}
+
+void applyLighting(inout vec3 lightColour, vec3 lightDir, vec3 hitNorm, vec3 rayDirection, Light l, float hitShininess, vec3 hitColour, float dist, float fraction){
+	float diff = max(0.0, dot(hitNorm, lightDir));
+	vec3 halfwayDir = normalize(lightDir - rayDirection);
+	float spec = pow(max(dot(hitNorm, halfwayDir), 0.0), hitShininess);
+	float att = 1.0 / (l.constant + l.linear * dist + 
+		l.quadratic * (dist * dist));
+	//Directional light does not dim with distance
+	if(l.isDirectional > 0.0) {
+		att = 1.0;
+	}
+	lightColour += (hitColour * diff + spec) * l.colour * att / fraction;
 }
 
 bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist){

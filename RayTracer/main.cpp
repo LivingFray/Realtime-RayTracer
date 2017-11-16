@@ -211,9 +211,9 @@ struct Plane {
 
 struct Light {
 	glm::vec3 pos;
-	float paddingA;
+	float isDirectional;
 	glm::vec3 colour;
-	float paddingB;
+	float radius;
 	float constant;
 	float linear;
 	float quadratic;
@@ -254,23 +254,29 @@ int main() {
 		newP.pos = glm::vec3(0.0f, 0.0f, 0.0f);
 		newP.norm = glm::vec3(0.0f, 1.0f, 0.0f);
 		newP.colour = glm::vec3(0.0f, 1.0f, 0.0f);
-		//Calc cutoff
 		newP.shininess = 50.0f;
 		planes.push_back(newP);
 	}
 	std::vector<Light> lights;
 	{
 		struct Light newL;
-		newL.pos = glm::vec3(0.0f, 10.0f, 0.0f);
+		newL.pos = glm::vec3(0.0f, 4.0f, 0.0f);
 		newL.colour = glm::vec3(1.0f, 1.0f, 1.0f);
 		newL.constant = 1.0f;
-		newL.linear = 0.09f;
-		newL.quadratic = 0.032f;
-		//Calc cutoff
-		newL.maxDist = 50.0f;
+		newL.linear = 0.22f;
+		newL.quadratic = 0.2f;
+		newL.isDirectional = 0.0f;
+		newL.radius = 0.1f;
+		newL.maxDist = 20.0f;
 		lights.push_back(newL);
 	}
-
+	{
+		struct Light newL;
+		newL.pos = glm::vec3(0.0f, -1.0f, 0.0f);
+		newL.colour = glm::vec3(0.3f, 0.3f, 0.3f);
+		newL.isDirectional = 1.0f;
+		lights.push_back(newL);
+	}
 	//Bind test input
 	GLuint sphereSSBO;
 	glGenBuffers(1, &sphereSSBO);
@@ -292,6 +298,7 @@ int main() {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
 	//Set camera properties
+	camPos = glm::vec3(0.0f, 2.0f, 0.0f);
 	glUseProgram(compute.getProgram());
 	glUniform1f(glGetUniformLocation(compute.getProgram(), "twiceTanFovY"), tanf(3.1415926535f * FOV / 360.0f));
 	glUniform1f(glGetUniformLocation(compute.getProgram(), "cameraWidth"), CAMERA_WIDTH);
