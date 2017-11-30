@@ -222,6 +222,138 @@ struct Light {
 };
 
 
+int inline getGrid(float pos, float size, float minCoord, int numGrids) {
+	return glm::clamp(static_cast<int>(ceil((pos - minCoord) * size)), 0, numGrids-1);
+}
+
+/*
+In order to store a regular grid on a GPU using contiguous memory, grid points
+to the first index of a list of vertices. Relevant primitves are determined by
+accessing the primitives list from index currentGrid.value to (currentGrid+1).value
+
+*/
+#define DENSITY 8.0f
+void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vector<int>& lists, GLuint id) {
+	//Determine bounding box for grid
+	float minX, minY, minZ, maxX, maxY, maxZ;
+	minX = minY = minZ = INFINITY;
+	maxX = maxY = maxZ = -INFINITY;
+	for (Sphere s : spheres) {
+		if (s.pos.x - s.radius < minX) {
+			minX = s.pos.x - s.radius;
+		}
+		if (s.pos.x + s.radius > maxX) {
+			maxX = s.pos.x + s.radius;
+		}
+		if (s.pos.y - s.radius < minY) {
+			minY = s.pos.y - s.radius;
+		}
+		if (s.pos.y + s.radius > maxY) {
+			maxY = s.pos.y + s.radius;
+		}
+		if (s.pos.z - s.radius < minZ) {
+			minZ = s.pos.z - s.radius;
+		}
+		if (s.pos.z + s.radius > maxZ) {
+			maxZ = s.pos.z + s.radius;
+		}
+	}
+	//Equation from http://www.dbd.puc-rio.br/depto_informatica/09_14_ivson.pdf
+	float dX = maxX - minX;
+	float dY = maxY - minY;
+	float dZ = maxZ - minZ;
+	float size = pow((DENSITY * spheres.size())/(dX * dY * dZ),1/3.0f);
+	int nX = static_cast<int>(ceil(dX / size));
+	int nY = static_cast<int>(ceil(dY / size));
+	int nZ = static_cast<int>(ceil(dZ / size));
+	float sizeX = dX / nX;
+	float sizeY = dY / nY;
+	float sizeZ = dZ / nZ;
+
+	std::vector<std::vector<int>> list;
+	list.resize(nX * nY * nZ);
+	//For each sphere, test intersection with subsection of grid
+	int spherePos = 0;
+	for (Sphere s : spheres) {
+		//Calculate boundaries of sphere
+		int radGridSizeX = static_cast<int>(ceil(s.radius * sizeX)) - 1;
+		int radGridSizeY = static_cast<int>(ceil(s.radius * sizeY)) - 1;
+		int radGridSizeZ = static_cast<int>(ceil(s.radius * sizeZ)) - 1;
+		int cX = getGrid(s.pos.x, sizeX, minX, nX);
+		int cY = getGrid(s.pos.y, sizeY, minY, nY);
+		int cZ = getGrid(s.pos.z, sizeZ, minZ, nZ);
+		float xMin = s.pos.x - s.radius;
+		float yMin = s.pos.y - s.radius;
+		float zMin = s.pos.z - s.radius;
+		float xMax = s.pos.x + s.radius;
+		float yMax = s.pos.y + s.radius;
+		float zMax = s.pos.z + s.radius;
+		//for (int x = cX - radGridSize; x < cX + radGridSize; x++) {
+		for (int x = 0; x < nX; x++) {
+			float gXMin = x * sizeX + minX;
+			float gXMax = (x + 1) * sizeX + minX;
+			//Sphere is too far away to possibly intersect
+			if (xMax < gXMin || xMin > gXMax) {
+			//	continue;
+			}
+			float closestX = glm::clamp(s.pos.x, gXMin, gXMax);
+			//for (int y = cY - radGridSize; y < cY + radGridSize; y++) {
+			for (int y = 0; y < nY; y++) {
+				float gYMin = y * sizeY + minY;
+				float gYMax = (y + 1) * sizeY + minY;
+				//Sphere is too far away to possibly intersect
+				if (yMax < gYMin || yMin > gYMax) {
+				//	continue;
+				}
+				float closestY = glm::clamp(s.pos.y, gYMin, gYMax);
+				//for (int z = cZ - radGridSize; z < cZ + radGridSize; z++) {
+				for (int z = 0; z < nZ; z++) {
+					float gZMin = z * sizeZ + minZ;
+					float gZMax = (z + 1) * sizeZ + minZ;
+					//Sphere is too far away to possibly intersect
+					if (zMax < gZMin || zMin > gZMax) {
+					//	continue;
+					}
+					float closestZ = glm::clamp(s.pos.z, gZMin, gZMax);
+					//Test for overlap
+					float distX = closestX - s.pos.x;
+					float distY = closestY - s.pos.y;
+					float distZ = closestZ - s.pos.z;
+					if(distX * distX + distY * distY + distZ * distZ <= s.radius * s.radius) {
+						list[x + nX * y + nX * nY * z].push_back(spherePos);
+					}
+				}
+			}
+		}
+		spherePos++;
+	}
+	grid.clear();
+	//Take list of lists of grids and convert to GPU friendly format
+	int currentIndex = -1;
+	for (std::vector<int> gridList : list) {
+		//Grid stores last node to retrieve
+		currentIndex += gridList.size();
+		grid.push_back(currentIndex);
+		for (int index : gridList) {
+			lists.push_back(index);
+		}
+	}
+	glUseProgram(id);
+	glUniform1i(glGetUniformLocation(id, "numX"), nX);
+	glUniform1i(glGetUniformLocation(id, "numY"), nY);
+	glUniform1i(glGetUniformLocation(id, "numZ"), nZ);
+	glUniform1f(glGetUniformLocation(id, "sizeX"), sizeX);
+	glUniform1f(glGetUniformLocation(id, "sizeY"), sizeY);
+	glUniform1f(glGetUniformLocation(id, "sizeZ"), sizeZ);
+	glUniform1f(glGetUniformLocation(id, "gridMinX"), minX);
+	glUniform1f(glGetUniformLocation(id, "gridMinY"), minY);
+	glUniform1f(glGetUniformLocation(id, "gridMinZ"), minZ);
+	glUniform1f(glGetUniformLocation(id, "gridMaxX"), maxX);
+	glUniform1f(glGetUniformLocation(id, "gridMaxY"), maxY);
+	glUniform1f(glGetUniformLocation(id, "gridMaxZ"), maxZ);
+	glUseProgram(0);
+}
+
 int main() {
 	//Initialise OpenGL
 	init(WIDTH, HEIGHT, "Ray Tracer");
@@ -237,12 +369,12 @@ int main() {
 
 	//Create test input
 	std::vector<Sphere> spheres;
-	for (int x = 0; x < 5; x++) {
-		for (int y = 0; y < 5; y++) {
+	int numSpheres = 2;
+	for (int x = 0; x < numSpheres; x++) {
+		for (int y = 0; y < numSpheres; y++) {
 			struct Sphere newS;
-			newS.pos = glm::vec3(static_cast<float>(x * 2)-2.5f, 1.0f, static_cast<float>(y * 2)-2.5f);
-			newS.radius = 1.0f;//static_cast<float>(x + y) / 20.0f;
-			//newS.colour = glm::vec3(static_cast<float>(x)/5.0f, static_cast<float>(y)/5.0f, 0.0f);
+			newS.pos = glm::vec3(static_cast<float>(x * 2) - numSpheres / 2.0f, 1.0f, static_cast<float>(y * 2) - numSpheres / 2.0f);
+			newS.radius = 1.0f;
 			newS.colour = glm::vec3(1.0f, 0.0f, 0.0f);
 			newS.shininess = 64.0f;
 			spheres.push_back(newS);
@@ -257,6 +389,14 @@ int main() {
 		newP.shininess = 50.0f;
 		planes.push_back(newP);
 	}
+	{
+		struct Plane newP;
+		newP.pos = glm::vec3(0.0f, 8.0f, 0.0f);
+		newP.norm = glm::vec3(0.0f, -1.0f, 0.0f);
+		newP.colour = glm::vec3(0.0f, 1.0f, 0.0f);
+		newP.shininess = 50.0f;
+		planes.push_back(newP);
+	}
 	std::vector<Light> lights;
 	{
 		struct Light newL;
@@ -266,7 +406,7 @@ int main() {
 		newL.linear = 0.22f;
 		newL.quadratic = 0.2f;
 		newL.isDirectional = 0.0f;
-		newL.radius = 0.1f;
+		newL.radius = 0.01f;
 		newL.maxDist = 20.0f;
 		lights.push_back(newL);
 	}
@@ -277,6 +417,11 @@ int main() {
 		newL.isDirectional = 1.0f;
 		lights.push_back(newL);
 	}
+	std::vector<int> grid;
+	std::vector<int> list;
+	generateGrid(spheres, grid, list, compute.getProgram());
+	std::cout << "Generated grid (" << grid.size() << " nodes)" << std::endl;
+
 	//Bind test input
 	GLuint sphereSSBO;
 	glGenBuffers(1, &sphereSSBO);
@@ -284,21 +429,33 @@ int main() {
 	glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(Sphere), &spheres[0], GL_STATIC_DRAW);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, sphereSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	GLuint gridSSBO;
+	glGenBuffers(1, &gridSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, grid.size() * sizeof(int), &grid[0], GL_STATIC_DRAW);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gridSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	GLuint listSSBO;
+	glGenBuffers(1, &listSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, listSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, list.size() * sizeof(int), &list[0], GL_STATIC_DRAW);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, listSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 	GLuint planeSSBO;
 	glGenBuffers(1, &planeSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, planeSSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, planes.size() * sizeof(Plane), &planes[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, planeSSBO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, planeSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 	GLuint lightSSBO;
 	glGenBuffers(1, &lightSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightSSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, lights.size() * sizeof(Light), &lights[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, lightSSBO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, lightSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
 	//Set camera properties
-	camPos = glm::vec3(0.0f, 2.0f, 0.0f);
+	camPos = glm::vec3(2.0f, 4.0f, 0.0f);
 	glUseProgram(compute.getProgram());
 	glUniform1f(glGetUniformLocation(compute.getProgram(), "twiceTanFovY"), tanf(3.1415926535f * FOV / 360.0f));
 	glUniform1f(glGetUniformLocation(compute.getProgram(), "cameraWidth"), CAMERA_WIDTH);
@@ -348,7 +505,15 @@ int main() {
 		time = glfwGetTime();
 		dt = time - lastTime;
 		lastTime = time;
-
+		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+			glUseProgram(compute.getProgram());
+			glUniform1i(glGetUniformLocation(compute.getProgram(), "debug"), 1);
+			glUseProgram(0);
+		} else {
+			glUseProgram(compute.getProgram());
+			glUniform1i(glGetUniformLocation(compute.getProgram(), "debug"), 0);
+			glUseProgram(0);
+		}
 		//Print Frames per second
 		frames++;
 		timeSincePrinted += dt;

@@ -7,7 +7,7 @@ layout(local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE, local_size_z = 1) i
 //Prevent reflected rays colliding with the object they originated from
 #define BIAS 0.001
 
-#define NUM_SHADOW_RAYS 3
+#define NUM_SHADOW_RAYS 1
 
 #define SKY_COLOR vec3(0.529, 0.808, 0.980)
 
@@ -50,11 +50,19 @@ layout(std140, binding = 1) buffer SphereBuffer {
 	Sphere spheres[];
 };
 
-layout(std140, binding = 2) buffer PlaneBuffer {
+layout(std140, binding = 2) buffer GridBuffer {
+	int sphereGrid[];
+};
+
+layout(std140, binding = 3) buffer ListBuffer {
+	int sphereLists[];
+};
+
+layout(std140, binding = 4) buffer PlaneBuffer {
 	Plane planes[];
 };
 
-layout(std140, binding = 3) buffer LightBuffer {
+layout(std140, binding = 5) buffer LightBuffer {
 	Light lights[];
 };
 
@@ -63,6 +71,37 @@ uniform float cameraWidth;
 uniform float cameraHeight;
 uniform mat4 cameraMatrix;
 
+uniform int numX;
+uniform int numY;
+uniform int numZ;
+uniform float sizeX;
+uniform float sizeY;
+uniform float sizeZ;
+uniform float gridMinX;
+uniform float gridMinY;
+uniform float gridMinZ;
+uniform float gridMaxX;
+uniform float gridMaxY;
+uniform float gridMaxZ;
+
+uniform bool debug;
+
+
+//DDA variables
+int stepX;
+int stepY;
+int stepZ;
+float deltaX;
+float deltaY;
+float deltaZ;
+int gridX;
+int gridY;
+int gridZ;
+float maxX;
+float maxY;
+float maxZ;
+
+
 //Applies lighting to the pixel at 1/fraction the normal brightness
 void applyLighting(inout vec3 lightColour, vec3 lightDir, vec3 hitNorm, vec3 rayDirection, Light l, float hitShininess, vec3 hitColour, float dist, float fraction);
 
@@ -70,7 +109,13 @@ void applyLighting(inout vec3 lightColour, vec3 lightDir, vec3 hitNorm, vec3 ray
 vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection);
 
 //Returns if the ray hits anything
-bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist);
+bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist);
+
+//Gets the next grid that contains a possible collision
+bool getNextSphereList(inout int listStart, inout int listEnd);
+
+//Resets the grid traversal algorithm
+bool initSphereListRay(vec3 rayOrigin, vec3 rayDirection, inout int listStart, inout int listEnd);
 
 void main(){
 	//Get the position of the current pixel
@@ -184,12 +229,17 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 			applyLighting(lightColour, lightDir, hitNorm, rayDirection, l, hitShininess, hitColour, 1.0);
 #endif
 #if ((NUM_SHADOW_RAYS > 0) && (NUM_SHADOW_RAYS % 2 == 1))
-			if(!hasCollision(hitAt, lightDir, BIAS)){
-				if(l.isDirectional>0.0) {
-					applyLighting(lightColour, lightDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, 1.0);
-				} else {
-					applyLighting(lightColour, lightDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
-				}
+			float frac;
+			float maxDist;
+			if(l.isDirectional>0.0) {
+				frac = 1.0;
+				maxDist = -1.0;
+			} else {
+				frac = NUM_SHADOW_RAYS * NUM_SHADOW_RAYS;
+				maxDist = dist;
+			}
+			if(!hasCollision(hitAt, lightDir, BIAS, maxDist)){
+				applyLighting(lightColour, lightDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, frac);
 			}
 #endif
 /*
@@ -210,25 +260,25 @@ For NUM_SHADOW_RAYS/2 Fire ray in neg from centre at interval of LR / NUM_SHADOW
 						vec3 newDir = (l.pos + lightRight * x + lightUp * y) - hitAt;
 						dist = length(newDir);
 						newDir /= dist;
-						if(!hasCollision(hitAt, newDir, BIAS)){
+						if(!hasCollision(hitAt, newDir, BIAS, dist)){
 							applyLighting(lightColour, newDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
 						}
 						newDir = (l.pos - lightRight * x + lightUp * y) - hitAt;
 						dist = length(newDir);
 						newDir /= dist;
-						if(!hasCollision(hitAt, newDir, BIAS)){
+						if(!hasCollision(hitAt, newDir, BIAS, dist)){
 							applyLighting(lightColour, newDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
 						}
 						newDir = (l.pos + lightRight * x - lightUp * y) - hitAt;
 						dist = length(newDir);
 						newDir /= dist;
-						if(!hasCollision(hitAt, newDir, BIAS)){
+						if(!hasCollision(hitAt, newDir, BIAS, dist)){
 							applyLighting(lightColour, newDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
 						}
 						newDir = (l.pos - lightRight * x - lightUp * y) - hitAt;
 						dist = length(newDir);
 						newDir /= dist;
-						if(!hasCollision(hitAt, newDir, BIAS)){
+						if(!hasCollision(hitAt, newDir, BIAS, dist)){
 							applyLighting(lightColour, newDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
 						}
 					}
@@ -253,7 +303,7 @@ void applyLighting(inout vec3 lightColour, vec3 lightDir, vec3 hitNorm, vec3 ray
 	lightColour += (hitColour * diff + spec) * l.colour * att / fraction;
 }
 
-bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist){
+bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist){
 	//Loop through each plane
 	for(int i=0; i<planes.length(); i++){
 		Plane p = planes[i];
@@ -267,37 +317,188 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist){
 		//Check not zero (or very close to)
 		if(abs(rDN)>0.0001){
 			float t = dot((p.pos - rayOrigin), p.norm) / rDN;
-			if(t > BIAS){
+			if(t > minDist && (t <= maxDist || maxDist < 0)){
 				return true;
 			}
 		}
 	}
 	//Loop through each sphere
-	for(int i=0; i<spheres.length(); i++){
-		Sphere s = spheres[i];
-		// P = rO + t(rD) //Ray equation
-		// r = |P - C|    //Sphere equation
-		////After much rearranging we get:
-		// t = -b +/- sqrt(b*b - c)
-		// Where:
-		// b = (rO - C) . rD
-		// c = (rO - C).(rO - C) - r*r
-		// If b * b - c < 0: No Solutions
-		// If b * b - c = 0: 1 Solution
-		// If b * b - c > 0: 2 Solutions
-		vec3 rOC = rayOrigin - s.pos;
-		float b = dot(rOC, rayDirection);
-		float c = dot(rOC, rOC) - s.radius * s.radius;
-		//Check for solution
-		float disc = b * b - c;
-		//Check for solution
-		if(disc >= 0.0){
-			float rt = sqrt(disc);
-			float first = -b + rt;
-			if(first >= minDist){
-				return true;
+	int listStart;
+	int listEnd;
+	if(initSphereListRay(rayOrigin, rayDirection, listStart, listEnd)){
+		//return true;
+		//while(getNextSphereList(listStart, listEnd)){
+			//for(int i=listStart; i<=listEnd; i++){
+			for(int i = 0; i < spheres.length(); i++) {
+				//Sphere s = spheres[sphereLists[i]];
+				Sphere s = spheres[i];
+				// P = rO + t(rD) //Ray equation
+				// r = |P - C|    //Sphere equation
+				////After much rearranging we get:
+				// t = -b +/- sqrt(b*b - c)
+				// Where:
+				// b = (rO - C) . rD
+				// c = (rO - C).(rO - C) - r*r
+				// If b * b - c < 0: No Solutions
+				// If b * b - c = 0: 1 Solution
+				// If b * b - c > 0: 2 Solutions
+				vec3 rOC = rayOrigin - s.pos;
+				float b = dot(rOC, rayDirection);
+				float c = dot(rOC, rOC) - s.radius * s.radius;
+				//Check for solution
+				float disc = b * b - c;
+				//Check for solution
+				if(disc >= 0.0){
+					float rt = sqrt(disc);
+					float first = -b + rt;
+					if(first >= minDist && (first <= maxDist || maxDist < 0)){
+						return true;
+					}
+				}
 			}
-		}
+	//	}
 	}
 	return false;
+}
+
+
+/*
+Store:
+First vertical cut: tMaxX
+First horizontal cut: tMaxY
+How far to move before the ray has 
+travelled a horizontal distance of one cell width: DeltaX
+How far to move before the ray has 
+travelled a vertical distance of one cell height: DeltaY
+
+list= NIL;
+do  {
+	if(tMaxX < tMaxY) {
+		if(tMaxX < tMaxZ) {
+			X= X + stepX;
+			if(X == justOutX)
+				return(NIL); 
+			tMaxX= tMaxX + tDeltaX;
+		} else  {
+			Z= Z + stepZ;
+			if(Z == justOutZ)
+				return(NIL);
+			tMaxZ= tMaxZ + tDeltaZ;
+		}
+	} else  {
+		if(tMaxY < tMaxZ) {
+			Y= Y + stepY;
+			if(Y == justOutY)
+				return(NIL);
+			tMaxY= tMaxY + tDeltaY;
+		} else  {
+			Z= Z + stepZ;
+			if(Z == justOutZ)
+				return(NIL);
+			tMaxZ= tMaxZ + tDeltaZ;
+		}
+	}
+	list= ObjectList[X][Y][Z];
+} while(list == NIL);
+
+*/
+
+bool initSphereListRay(vec3 rayOrigin, vec3 rayDirection, inout int listStart, inout int listEnd) {
+	listStart = 0;
+	listEnd = 0;
+	stepX = rayDirection.x > 0 ? 1 : -1;
+	stepY = rayDirection.y > 0 ? 1 : -1;
+	stepZ = rayDirection.z > 0 ? 1 : -1;
+
+	//Keep ray in bounds
+	//Fix x position
+	if((rayOrigin.x >= gridMaxX && rayDirection.x >= 0) || (rayOrigin.x <= gridMinX && rayDirection.x <= 0)) {
+		return false;
+	}
+	if(stepX == 1 && rayOrigin.x < gridMinX){
+		rayOrigin += rayDirection * ((gridMinX - rayOrigin.x) / rayDirection.x);
+	} else if(stepX == -1 && rayOrigin.x > gridMaxX) {
+		rayOrigin += rayDirection * ((gridMaxX - rayOrigin.x) / rayDirection.x);
+	}
+	//Fix y position
+	if ((rayOrigin.y >= gridMaxY && rayDirection.y >= 0) || (rayOrigin.y <= gridMinY && rayDirection.y <= 0)) {
+		return false;
+	}
+	if(stepY == 1 && rayOrigin.y < gridMinY){
+		rayOrigin += rayDirection * ((gridMinY - rayOrigin.y) / rayDirection.y);
+	} else if(stepY == -1 && rayOrigin.y > gridMaxY) {
+		rayOrigin += rayDirection * ((gridMaxY - rayOrigin.y) / rayDirection.y);
+	}
+	//Fix z position
+	if ((rayOrigin.z >= gridMaxZ && rayDirection.z >= 0) || (rayOrigin.z <= gridMinZ && rayDirection.z <= 0)) {
+		return false;
+	}
+	if(stepZ == 1 && rayOrigin.z < gridMinZ){
+		rayOrigin += rayDirection * ((gridMinZ - rayOrigin.z) / rayDirection.z);
+	} else if(stepZ == -1 && rayOrigin.z > gridMaxZ){
+		rayOrigin += rayDirection * ((gridMaxZ - rayOrigin.z) / rayDirection.z);
+	}
+	//Fix rounding issues
+	rayOrigin.x = clamp(rayOrigin.x, gridMinX, gridMaxX);
+	rayOrigin.y = clamp(rayOrigin.y, gridMinY, gridMaxY);
+	rayOrigin.z = clamp(rayOrigin.z, gridMinZ, gridMaxZ);
+	deltaX = sizeX / rayDirection.x;
+	deltaY = sizeY / rayDirection.y;
+	deltaZ = sizeZ / rayDirection.z;
+	gridX = clamp(int(floor((rayOrigin.x - gridMinX) * sizeX)), 0, numX - 1);
+	gridY = clamp(int(floor((rayOrigin.y - gridMinY) * sizeY)), 0, numY - 1);
+	gridZ = clamp(int(floor((rayOrigin.z - gridMinZ) * sizeZ)), 0, numZ - 1);
+	if(debug && gridX == 0 && gridY == 0 && gridZ == 0) {
+		return false;
+	}
+	maxX = ((gridX + max(0, stepX))*sizeX - rayOrigin.x) / rayDirection.x;
+	maxY = ((gridY + max(0, stepY))*sizeY - rayOrigin.y) / rayDirection.y;
+	maxZ = ((gridZ + max(0, stepZ))*sizeZ - rayOrigin.z) / rayDirection.z;
+	return true;
+}
+/*
+Store index of last sphere
+Get first index from previous
+If no previous first is 0
+
+-101257 => empty,0 to 0, 1 to 1, 2 to 2, 
+*/
+bool getNextSphereList(inout int listStart, inout int listEnd) {
+	int index;
+	do {
+		if(maxX < maxY) {
+			if(maxX < maxZ) {
+				gridX = gridX + stepX;
+				if(gridX == numX || gridX == -1)
+					return false; 
+				maxX = maxX + deltaX;
+			} else  {
+				gridZ = gridZ + stepZ;
+				if(gridZ == numZ || gridZ == -1)
+					return false;
+				maxZ = maxZ + deltaZ;
+			}
+		} else  {
+			if(maxY < maxZ) {
+				gridY = gridY + stepY;
+				if(gridY == numY || gridY == -1)
+					return false;
+				maxY = maxY + deltaY;
+			} else  {
+				gridZ = gridZ + stepZ;
+				if(gridZ == numZ || gridZ == -1)
+					return false;
+				maxZ = maxZ + deltaZ;
+			}
+		}
+		index = gridX + gridY * numX + gridZ * numX * numY;
+		if(index == 0) {
+			listStart = -1;
+		} else {
+			listStart = sphereGrid[index - 1];
+		}
+		listEnd = sphereGrid[index];
+	} while(listStart == listEnd);
+	listStart++;
+	return true;
 }
