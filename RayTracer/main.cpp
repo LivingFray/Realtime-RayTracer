@@ -149,10 +149,10 @@ void updateCamera(double dt) {
 	horizontalAngle += mx * MOUSE_SPEED;
 	verticalAngle += my * MOUSE_SPEED;
 
-	if (horizontalAngle  > glm::two_pi<double>()) {
+	if (horizontalAngle > glm::two_pi<double>()) {
 		horizontalAngle -= glm::two_pi<double>();
 	}
-	if (horizontalAngle  < 0.0) {
+	if (horizontalAngle < 0.0) {
 		horizontalAngle += glm::two_pi<double>();
 	}
 	if (verticalAngle > glm::half_pi<double>()) {
@@ -223,7 +223,7 @@ struct Light {
 
 
 int inline getGrid(float pos, float size, float minCoord, int numGrids) {
-	return glm::clamp(static_cast<int>(ceil((pos - minCoord) * size)), 0, numGrids-1);
+	return glm::clamp(static_cast<int>(ceil((pos - minCoord) * size)), 0, numGrids - 1);
 }
 
 /*
@@ -262,16 +262,16 @@ void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vec
 	float dX = maxX - minX;
 	float dY = maxY - minY;
 	float dZ = maxZ - minZ;
-	float size = pow((DENSITY * spheres.size())/(dX * dY * dZ),1/3.0f);
-	int nX = static_cast<int>(ceil(dX / size));
-	int nY = static_cast<int>(ceil(dY / size));
-	int nZ = static_cast<int>(ceil(dZ / size));
-	float sizeX = dX / nX;
-	float sizeY = dY / nY;
-	float sizeZ = dZ / nZ;
+	float size = pow((DENSITY * spheres.size()) / (dX * dY * dZ), 1 / 3.0f);
+	int nX = 2;//static_cast<int>(ceil(dX / size));
+	int nY = 2;//static_cast<int>(ceil(dY / size));
+	int nZ = 2;//static_cast<int>(ceil(dZ / size));
+	float sizeX = dX / static_cast<float>(nX);
+	float sizeY = dY / static_cast<float>(nY);
+	float sizeZ = dZ / static_cast<float>(nZ);
 
-	std::vector<std::vector<int>> list;
-	list.resize(nX * nY * nZ);
+	std::vector<std::vector<int>> gridSphereList;
+	gridSphereList.resize(nX * nY * nZ);
 	//For each sphere, test intersection with subsection of grid
 	int spherePos = 0;
 	for (Sphere s : spheres) {
@@ -282,19 +282,28 @@ void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vec
 		int cX = getGrid(s.pos.x, sizeX, minX, nX);
 		int cY = getGrid(s.pos.y, sizeY, minY, nY);
 		int cZ = getGrid(s.pos.z, sizeZ, minZ, nZ);
-		float xMin = s.pos.x - s.radius;
-		float yMin = s.pos.y - s.radius;
-		float zMin = s.pos.z - s.radius;
-		float xMax = s.pos.x + s.radius;
-		float yMax = s.pos.y + s.radius;
-		float zMax = s.pos.z + s.radius;
+
+		int xMin = static_cast<int>((((s.pos.x - s.radius) - minX) / sizeX));
+		int yMin = static_cast<int>((((s.pos.y - s.radius) - minY) / sizeY));
+		int zMin = static_cast<int>((((s.pos.z - s.radius) - minZ) / sizeZ));
+		int xMax = static_cast<int>(ceil(((s.pos.x + s.radius) - minX) / sizeX));
+		int yMax = static_cast<int>(ceil(((s.pos.y + s.radius) - minY) / sizeY));
+		int zMax = static_cast<int>(ceil(((s.pos.z + s.radius) - minZ) / sizeZ));
+
+		for (int x = xMin; x < xMax; x++) {
+			for (int y = yMin; y < yMax; y++) {
+				for (int z = zMin; z < zMax; z++) {
+					gridSphereList[x + nX * y + nX * nY * z].push_back(spherePos);
+				}
+			}
+		}
 		//for (int x = cX - radGridSize; x < cX + radGridSize; x++) {
-		for (int x = 0; x < nX; x++) {
+		/*for (int x = 0; x < nX; x++) {
 			float gXMin = x * sizeX + minX;
 			float gXMax = (x + 1) * sizeX + minX;
 			//Sphere is too far away to possibly intersect
 			if (xMax < gXMin || xMin > gXMax) {
-			//	continue;
+				continue;
 			}
 			float closestX = glm::clamp(s.pos.x, gXMin, gXMax);
 			//for (int y = cY - radGridSize; y < cY + radGridSize; y++) {
@@ -303,7 +312,7 @@ void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vec
 				float gYMax = (y + 1) * sizeY + minY;
 				//Sphere is too far away to possibly intersect
 				if (yMax < gYMin || yMin > gYMax) {
-				//	continue;
+					continue;
 				}
 				float closestY = glm::clamp(s.pos.y, gYMin, gYMax);
 				//for (int z = cZ - radGridSize; z < cZ + radGridSize; z++) {
@@ -312,7 +321,7 @@ void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vec
 					float gZMax = (z + 1) * sizeZ + minZ;
 					//Sphere is too far away to possibly intersect
 					if (zMax < gZMin || zMin > gZMax) {
-					//	continue;
+						continue;
 					}
 					float closestZ = glm::clamp(s.pos.z, gZMin, gZMax);
 					//Test for overlap
@@ -320,23 +329,29 @@ void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vec
 					float distY = closestY - s.pos.y;
 					float distZ = closestZ - s.pos.z;
 					if(distX * distX + distY * distY + distZ * distZ <= s.radius * s.radius) {
-						list[x + nX * y + nX * nY * z].push_back(spherePos);
+						gridSphereList[x + nX * y + nX * nY * z].push_back(spherePos);
 					}
 				}
 			}
-		}
+		}*/
 		spherePos++;
 	}
 	grid.clear();
+	lists.clear();
 	//Take list of lists of grids and convert to GPU friendly format
-	int currentIndex = -1;
-	for (std::vector<int> gridList : list) {
-		//Grid stores last node to retrieve
-		currentIndex += gridList.size();
+	int currentIndex = 0;
+	for (std::vector<int> spheres : gridSphereList) {
+		//Calculate end index
+		currentIndex += spheres.size();
+		//Store end index
 		grid.push_back(currentIndex);
-		for (int index : gridList) {
+		//For each sphere in the list, add to global sphere list
+		for (int index : spheres) {
 			lists.push_back(index);
 		}
+		//for (int i = 0; i < 4; i++) {
+		//	lists.push_back(i);
+		//}
 	}
 	glUseProgram(id);
 	glUniform1i(glGetUniformLocation(id, "numX"), nX);
@@ -372,12 +387,12 @@ int main() {
 	int numSpheres = 2;
 	for (int x = 0; x < numSpheres; x++) {
 		for (int y = 0; y < numSpheres; y++) {
-			struct Sphere newS;
-			newS.pos = glm::vec3(static_cast<float>(x * 2) - numSpheres / 2.0f, 1.0f, static_cast<float>(y * 2) - numSpheres / 2.0f);
-			newS.radius = 1.0f;
-			newS.colour = glm::vec3(1.0f, 0.0f, 0.0f);
-			newS.shininess = 64.0f;
-			spheres.push_back(newS);
+		struct Sphere newS;
+		newS.pos = glm::vec3(static_cast<float>(x * 2) - numSpheres / 2.0f, 1.0f, static_cast<float>(y * 2) - numSpheres / 2.0f);
+		newS.radius = 0.75f;
+		newS.colour = glm::vec3(1.0f, 0.0f, 0.0f);
+		newS.shininess = 64.0f;
+		spheres.push_back(newS);
 		}
 	}
 	std::vector<Plane> planes;
@@ -455,7 +470,7 @@ int main() {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
 	//Set camera properties
-	camPos = glm::vec3(2.0f, 4.0f, 0.0f);
+	camPos = glm::vec3(2.0f, 4.0f, 2.0f);
 	glUseProgram(compute.getProgram());
 	glUniform1f(glGetUniformLocation(compute.getProgram(), "twiceTanFovY"), tanf(3.1415926535f * FOV / 360.0f));
 	glUniform1f(glGetUniformLocation(compute.getProgram(), "cameraWidth"), CAMERA_WIDTH);
