@@ -4,6 +4,13 @@
 #define GROUP_SIZE 1
 layout(local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE, local_size_z = 1) in;
 
+//Prevent reflected rays colliding with the object they originated from
+#define BIAS 0.001
+
+#define NUM_SHADOW_RAYS 1
+
+#define SKY_COLOR vec3(0.529, 0.808, 0.980)
+
 //Structures must align to a multiple of 4 bytes
 
 struct Sphere {
@@ -63,11 +70,27 @@ layout(std140, binding = 5) buffer LightBuffer {
 	Light lights[];
 };
 
-//Camera variables
 uniform float twiceTanFovY;
 uniform float cameraWidth;
 uniform float cameraHeight;
-uniform mat4 cameraMatrix; 
+uniform mat4 cameraMatrix;
+
+uniform int numX;
+uniform int numY;
+uniform int numZ;
+uniform float sizeX;
+uniform float sizeY;
+uniform float sizeZ;
+uniform float gridMinX;
+uniform float gridMinY;
+uniform float gridMinZ;
+uniform float gridMaxX;
+uniform float gridMaxY;
+uniform float gridMaxZ;
+
+uniform bool debug;
+
+
 //DDA variables
 struct DDA {
 	int stepX;
@@ -85,26 +108,6 @@ struct DDA {
 	bool firstSphereIt;
 };
 
-uniform int numX;
-uniform int numY;
-uniform int numZ;
-uniform float sizeX;
-uniform float sizeY;
-uniform float sizeZ;
-uniform float gridMinX;
-uniform float gridMinY;
-uniform float gridMinZ;
-uniform float gridMaxX;
-uniform float gridMaxY;
-uniform float gridMaxZ;
-
-//Prevent reflected rays colliding with the object they originated from
-#define BIAS 0.001
-
-#define NUM_SHADOW_RAYS 1
-
-#define SKY_COLOR vec3(0.529, 0.808, 0.980)
-
 //Applies lighting to the pixel at 1/fraction the normal brightness
 void applyLighting(inout vec3 lightColour, vec3 lightDir, vec3 hitNorm, vec3 rayDirection, Light l, float hitShininess, vec3 hitColour, float dist, float fraction);
 
@@ -120,8 +123,24 @@ bool getNextSphereList(inout DDA dda, inout int listStart, inout int listEnd);
 //Resets the grid traversal algorithm
 bool initSphereListRay(vec3 rayOrigin, vec3 rayDirection, inout DDA dda, inout int listStart, inout int listEnd);
 
-//Returns if a ray intersects with the grid, setting the distance in dist if it does
-bool distToAABB(vec3 rayOrigin, vec3 rayDirection, inout float dist); 
+void main(){
+	//Get the position of the current pixel
+	ivec2 pixelPos = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 screenSize = imageSize(imgOut);
+	//Calculate ray
+	//Use view matrix to set origin
+	vec3 rayOrigin = vec3(cameraMatrix * vec4(0.0, 0.0, 0.0, 1.0));
+	//Convert pixel position to world space
+	float x = cameraWidth * (pixelPos.x + 0.5) / screenSize.x - cameraWidth * 0.5;
+	float y = cameraHeight * (pixelPos.y + 0.5) / screenSize.y - cameraHeight * 0.5;
+	float z = cameraHeight / twiceTanFovY;
+	//Apply view matrix to direction
+	vec3 rayDirection = normalize(mat3(cameraMatrix) * vec3(x, y, z));
+	//Fire ray
+	vec3 pixelColour = getPixelColour(rayOrigin, rayDirection);
+	imageStore(imgOut, pixelPos, vec4(pixelColour, 1.0));
+}
+
 //Finds the colour at the point the ray hits
 vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 	//
@@ -435,6 +454,36 @@ bool initSphereListRay(vec3 rayOrigin, vec3 rayDirection, inout DDA dda, inout i
 	dda.stepZ = rayDirection.z > 0 ? 1 : -1;
 
 	//Keep ray in bounds
+	/*
+	//Fix x position
+	if((rayOrigin.x >= gridMaxX && rayDirection.x >= 0) || (rayOrigin.x <= gridMinX && rayDirection.x <= 0)) {
+		return false;
+	}
+	if(dda.stepX == 1 && rayOrigin.x < gridMinX){
+		rayOrigin += rayDirection * ((gridMinX - rayOrigin.x) / rayDirection.x);
+	} else if(dda.stepX == -1 && rayOrigin.x > gridMaxX) {
+		rayOrigin += rayDirection * ((gridMaxX - rayOrigin.x) / rayDirection.x);
+	}
+	//Fix y position
+	if ((rayOrigin.y >= gridMaxY && rayDirection.y >= 0) || (rayOrigin.y <= gridMinY && rayDirection.y <= 0)) {
+		return false;
+	}
+	if(dda.stepY == 1 && rayOrigin.y < gridMinY){
+		rayOrigin += rayDirection * ((gridMinY - rayOrigin.y) / rayDirection.y);
+	} else if(dda.stepY == -1 && rayOrigin.y > gridMaxY) {
+		rayOrigin += rayDirection * ((gridMaxY - rayOrigin.y) / rayDirection.y);
+	}
+	//Fix z position
+	if ((rayOrigin.z >= gridMaxZ && rayDirection.z >= 0) || (rayOrigin.z <= gridMinZ && rayDirection.z <= 0)) {
+		return false;
+	}
+	if(dda.stepZ == 1 && rayOrigin.z < gridMinZ){
+		rayOrigin += rayDirection * ((gridMinZ - rayOrigin.z) / rayDirection.z);
+	} else if(dda.stepZ == -1 && rayOrigin.z > gridMaxZ){
+		rayOrigin += rayDirection * ((gridMaxZ - rayOrigin.z) / rayDirection.z);
+	}
+	*/
+	//*
 	float dist;
 	if(distToAABB(rayOrigin, rayDirection, dist)){
 		rayOrigin = rayOrigin + dist * rayDirection;
@@ -513,21 +562,4 @@ bool getNextSphereList(inout DDA dda, inout int listStart, inout int listEnd) {
 		listEnd = sphereGrid[index];
 	//} while(listStart == listEnd);
 	return true;
-} 
-void main(){
-	//Get the position of the current pixel
-	ivec2 pixelPos = ivec2(gl_GlobalInvocationID.xy);
-	ivec2 screenSize = imageSize(imgOut);
-	//Calculate ray
-	//Use view matrix to set origin
-	vec3 rayOrigin = vec3(cameraMatrix * vec4(0.0, 0.0, 0.0, 1.0));
-	//Convert pixel position to world space
-	float x = cameraWidth * (pixelPos.x + 0.5) / screenSize.x - cameraWidth * 0.5;
-	float y = cameraHeight * (pixelPos.y + 0.5) / screenSize.y - cameraHeight * 0.5;
-	float z = cameraHeight / twiceTanFovY;
-	//Apply view matrix to direction
-	vec3 rayDirection = normalize(mat3(cameraMatrix) * vec3(x, y, z));
-	//Fire ray
-	vec3 pixelColour = getPixelColour(rayOrigin, rayDirection);
-	imageStore(imgOut, pixelPos, vec4(pixelColour, 1.0));
-} 
+}
