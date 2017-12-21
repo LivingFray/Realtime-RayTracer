@@ -441,7 +441,6 @@ bool initSphereListRay(vec3 rayOrigin, vec3 rayDirection, inout DDA dda, inout i
 	} else {
 		return false;
 	}
-	//*/
 	
 	dda.deltaX = sizeX / rayDirection.x;
 	dda.deltaY = sizeY / rayDirection.y;
@@ -452,9 +451,9 @@ bool initSphereListRay(vec3 rayOrigin, vec3 rayDirection, inout DDA dda, inout i
 	dda.deltaY *= dda.stepY;
 	dda.deltaZ *= dda.stepZ;
 	
-	dda.gridX = clamp(int(floor((rayOrigin.x - gridMinX) / sizeX)), 0, numX - 1);
-	dda.gridY = clamp(int(floor((rayOrigin.y - gridMinY) / sizeY)), 0, numY - 1);
-	dda.gridZ = clamp(int(floor((rayOrigin.z - gridMinZ) / sizeZ)), 0, numZ - 1);
+	dda.gridX = clamp(int((rayOrigin.x - gridMinX) / sizeX), 0, numX - 1);
+	dda.gridY = clamp(int((rayOrigin.y - gridMinY) / sizeY), 0, numY - 1);
+	dda.gridZ = clamp(int((rayOrigin.z - gridMinZ) / sizeZ), 0, numZ - 1);
 	dda.maxX = ((dda.gridX + max(0, dda.stepX))*sizeX + gridMinX - rayOrigin.x) / rayDirection.x;
 	dda.maxY = ((dda.gridY + max(0, dda.stepY))*sizeY + gridMinY - rayOrigin.y) / rayDirection.y;
 	dda.maxZ = ((dda.gridZ + max(0, dda.stepZ))*sizeZ + gridMinZ - rayOrigin.z) / rayDirection.z;
@@ -474,44 +473,44 @@ If no matches LIST_START = LIST_END
 */
 bool getNextSphereList(inout DDA dda, inout int listStart, inout int listEnd) {
 	int index;
-	if(dda.stepZ != 1 && dda.stepZ != -1 && dda.stepZ != 0) {while(true){}}
-	//do {
-		if(!dda.firstSphereIt){
-			if(dda.maxX < dda.maxY) {
-				if(dda.maxX < dda.maxZ) {
-					dda.gridX = dda.gridX + dda.stepX;
-					if(dda.gridX == numX || dda.gridX == -1)
-						return false; 
-					dda.maxX = dda.maxX + dda.deltaX;
-				} else  {
-					dda.gridZ = dda.gridZ + dda.stepZ;
-					if(dda.gridZ == numZ || dda.gridZ == -1)
-						return false;
-					dda.maxZ = dda.maxZ + dda.deltaZ;
-				}
+	if(!dda.firstSphereIt){
+		if(dda.maxX < dda.maxY) {
+			if(dda.maxX < dda.maxZ) {
+				dda.gridX = dda.gridX + dda.stepX;
+				if(dda.gridX == numX || dda.gridX == -1)
+					return false; 
+				dda.maxX = dda.maxX + dda.deltaX;
 			} else  {
-				if(dda.maxY < dda.maxZ) {
-					dda.gridY = dda.gridY + dda.stepY;
-					if(dda.gridY == numY || dda.gridY == -1)
-						return false;
-					dda.maxY = dda.maxY + dda.deltaY;
-				} else  {
-					dda.gridZ = dda.gridZ + dda.stepZ;
-					if(dda.gridZ == numZ || dda.gridZ == -1)
-						return false;
-					dda.maxZ = dda.maxZ + dda.deltaZ;
-				}
+				dda.gridZ = dda.gridZ + dda.stepZ;
+				if(dda.gridZ == numZ || dda.gridZ == -1)
+					return false;
+				dda.maxZ = dda.maxZ + dda.deltaZ;
+			}
+		} else  {
+			if(dda.maxY < dda.maxZ) {
+				dda.gridY = dda.gridY + dda.stepY;
+				if(dda.gridY == numY || dda.gridY == -1)
+					return false;
+				dda.maxY = dda.maxY + dda.deltaY;
+			} else  {
+				dda.gridZ = dda.gridZ + dda.stepZ;
+				if(dda.gridZ == numZ || dda.gridZ == -1)
+					return false;
+				dda.maxZ = dda.maxZ + dda.deltaZ;
 			}
 		}
-		dda.firstSphereIt = false;
-		index = dda.gridX + dda.gridY * numX + dda.gridZ * numX * numY;
-		if(index == 0) {
-			listStart = 0;
-		} else {
-			listStart = sphereGrid[index - 1];
-		}
-		listEnd = sphereGrid[index];
-	//} while(listStart == listEnd);
+	}
+	dda.firstSphereIt = false;
+	index = dda.gridX + dda.gridY * numX + dda.gridZ * numX * numY;
+	/*
+	if(index == 0) {
+		listStart = 0;
+	} else {
+		listStart = sphereGrid[index - 1];
+	}
+	*/
+	listStart = min(index, 1) * sphereGrid[index - 1];
+	listEnd = sphereGrid[index];
 	return true;
 } 
 void main(){
