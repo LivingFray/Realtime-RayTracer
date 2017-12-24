@@ -233,7 +233,7 @@ to the first index of a list of vertices. Relevant primitves are determined by
 accessing the primitives list from index currentGrid.value to (currentGrid+1).value
 
 */
-#define DENSITY 8.0f
+#define DENSITY 128.0f
 void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vector<int>& lists, GLuint id) {
 	//Determine bounding box for grid
 	float minX, minY, minZ, maxX, maxY, maxZ;
@@ -264,9 +264,9 @@ void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vec
 	float dY = maxY - minY;
 	float dZ = maxZ - minZ;
 	float size = pow((DENSITY * spheres.size()) / (dX * dY * dZ), 1 / 3.0f);
-	int nX = 2;//static_cast<int>(ceil(dX / size));
-	int nY = 2;//static_cast<int>(ceil(dY / size));
-	int nZ = 2;//static_cast<int>(ceil(dZ / size));
+	int nX = static_cast<int>(ceil(dX / size));
+	int nY = static_cast<int>(ceil(dY / size));
+	int nZ = static_cast<int>(ceil(dZ / size));
 	float sizeX = dX / static_cast<float>(nX);
 	float sizeY = dY / static_cast<float>(nY);
 	float sizeZ = dZ / static_cast<float>(nZ);

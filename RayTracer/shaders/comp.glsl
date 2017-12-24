@@ -68,6 +68,48 @@ uniform float twiceTanFovY;
 uniform float cameraWidth;
 uniform float cameraHeight;
 uniform mat4 cameraMatrix; 
+uniform int numX;
+uniform int numY;
+uniform int numZ;
+uniform float sizeX;
+uniform float sizeY;
+uniform float sizeZ;
+uniform float gridMinX;
+uniform float gridMinY;
+uniform float gridMinZ;
+uniform float gridMaxX;
+uniform float gridMaxY;
+uniform float gridMaxZ;
+
+struct Collision {
+	float dist;
+	vec3 hitAt;
+	vec3 hitNorm;
+	vec3 hitColour;
+	float hitShininess;
+	bool hit;
+};
+
+//Prevent reflected rays colliding with the object they originated from
+#define BIAS 0.001
+
+#define NUM_SHADOW_RAYS 1
+
+#define SKY_COLOR vec3(0.529, 0.808, 0.980)
+
+//Gets the pixel colour where the ray hits
+vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection);
+
+//Returns if the ray hits anything
+bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist); 
+//Adds lighting to the pixel
+void addLighting(inout vec3 lightColour, Light l, Collision c, vec3 rayDirection);
+//Applies lighting to the pixel at 1/fraction the normal brightness
+void applyLighting(inout vec3 lightColour, vec3 lightDir, vec3 hitNorm, vec3 rayDirection, Light l, float hitShininess, vec3 hitColour, float dist, float fraction); 
+//Returns whether there was a collision and updates Collision struct accordingly
+bool getPlaneCollision(Plane p, vec3 rayOrigin, vec3 rayDirection, inout Collision c);
+//Returns whether the plane intersects with the ray
+bool hasPlaneCollision(Plane p, vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist); 
 //DDA variables
 struct DDA {
 	int stepX;
@@ -85,35 +127,6 @@ struct DDA {
 	bool firstSphereIt;
 };
 
-uniform int numX;
-uniform int numY;
-uniform int numZ;
-uniform float sizeX;
-uniform float sizeY;
-uniform float sizeZ;
-uniform float gridMinX;
-uniform float gridMinY;
-uniform float gridMinZ;
-uniform float gridMaxX;
-uniform float gridMaxY;
-uniform float gridMaxZ;
-
-//Prevent reflected rays colliding with the object they originated from
-#define BIAS 0.001
-
-#define NUM_SHADOW_RAYS 1
-
-#define SKY_COLOR vec3(0.529, 0.808, 0.980)
-
-//Applies lighting to the pixel at 1/fraction the normal brightness
-void applyLighting(inout vec3 lightColour, vec3 lightDir, vec3 hitNorm, vec3 rayDirection, Light l, float hitShininess, vec3 hitColour, float dist, float fraction);
-
-//Gets the pixel colour where the ray hits
-vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection);
-
-//Returns if the ray hits anything
-bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist);
-
 //Gets the next grid that contains a possible collision
 bool getNextSphereList(inout DDA dda, inout int listStart, inout int listEnd);
 
@@ -122,90 +135,45 @@ bool initSphereListRay(vec3 rayOrigin, vec3 rayDirection, inout DDA dda, inout i
 
 //Returns if a ray intersects with the grid, setting the distance in dist if it does
 bool distToAABB(vec3 rayOrigin, vec3 rayDirection, inout float dist); 
+//Returns whether there was a collision and updates Collision struct accordingly
+bool getSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, inout Collision col);
+//Returns whether there exists a collision between the ray and the sphere
+bool hasSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist); 
+// /*DEBUG*/ => //*DEBUG*/ Toggles a debug line
+
 //Finds the colour at the point the ray hits
 vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 	//
 	//Initial ray intersections
 	//
-	float d = -1;
-	vec3 hitAt;
-	vec3 hitNorm;
-	vec3 hitColour;
-	float hitShininess;
+	Collision c;
+	//Start with infinite distance collision
+	c.dist = 1.0 / 0.0;
+	c.hit = false;
 	//Loop through each sphere
 	int listStart;
 	int listEnd;
 	DDA dda;
 	
-	//vec3 debugColour = vec3(0.0, 0.0, 0.0);
-	bool gridNotHit = true;
+	/*DEBUG*/vec3 debugColour = vec3(0.0, 0.0, 0.0);//*/
+	//Track if a collision was made, if so no need to continue traversing grid
+	bool hitSphere = false;
 	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
-		while(getNextSphereList(dda, listStart, listEnd) && gridNotHit){
-			//debugColour += vec3(0.1, 0.1, 0.1);
+		while(getNextSphereList(dda, listStart, listEnd) && !hitSphere){
+			/*DEBUG*/debugColour += vec3(0.01, 0.01, 0.01);//*/
 			for(int i=listStart; i<listEnd; i++){
-				Sphere s = spheres[sphereLists[i]];
-				// P = rO + t(rD) //Ray equation
-				// r = |P - C|    //Sphere equation
-				////After much rearranging we get:
-				// t = -b +/- sqrt(b*b - c)
-				// Where:
-				// b = (rO - C) . rD
-				// c = (rO - C).(rO - C) - r*r
-				// If b * b - c < 0: No Solutions
-				// If b * b - c = 0: 1 Solution
-				// If b * b - c > 0: 2 Solutions
-				vec3 rOC = rayOrigin - s.pos;
-				float b = dot(rOC, rayDirection);
-				float c = dot(rOC, rOC) - s.radius * s.radius;
-				float disc = b * b - c;
-				//Check for solution
-				if(disc >= 0.0){
-					float rt = sqrt(disc);
-					float first = -b + rt;
-					float second = -b - rt;
-					float closest = min(first, second);
-					//Closest is behind camera, try other one
-					if(closest < 0.0){
-						closest = max(first, second);
-					}
-					if(closest >= 0.0 && (d<0.0 || d>closest)){
-						d = closest;
-						hitAt = rayOrigin + d * rayDirection;
-						hitNorm = normalize(hitAt - s.pos);
-						hitColour = s.colour;
-						hitShininess = s.shininess;
-						gridNotHit = false;
-					}
-				}
+				hitSphere = getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) || hitSphere;
 			}
 		}
 	}
 	//Loop through each plane
 	for(int i=0; i<planes.length(); i++){
-		Plane p = planes[i];
-		// P = rO + t(rD)
-		// 0 = N . (P - p0)
-		// 0 = N . (p0 - rO + t(rD))
-		// t = (p0 - rO).N / (rD.N)
-		// If rD.N = 0: Parallel (For this treat as no intersection)
-		// If t < 0: Behind ray origin
-		float rDN = dot(rayDirection, p.norm);
-		//Check not zero (or very close to)
-		if(abs(rDN)>0.0001 && dot(-rayDirection, p.norm) > 0.0) {
-			float t = dot((p.pos - rayOrigin), p.norm) / rDN;
-			if(t > 0.0 && (d < 0.0 || t < d)){
-				d = t;
-				hitAt = rayOrigin + d * rayDirection;
-				hitNorm = p.norm;
-				hitShininess = p.shininess;
-				hitColour = p.colour;
-			}
-		}
+		getPlaneCollision(planes[i], rayOrigin, rayDirection, c);
 	}
 	//No collisions just draw the sky
-	if(d < 0){
-		//return SKY_COLOR + debugColour;
-		return SKY_COLOR;
+	if(!c.hit){
+		/*DEBUG*/return SKY_COLOR + debugColour;/*/*//*
+		return SKY_COLOR;//*/
 	}
 	//
 	//Lighting
@@ -213,34 +181,97 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 	vec3 lightColour = vec3(0.0, 0.0, 0.0);//Add ambient here?
 	//Loop through each light to calculate lighting
 	for(int i=0;i<lights.length(); i++){
-		Light l = lights[i];
-		vec3 lightDir;
-		if(l.isDirectional>0.0){
-			lightDir = -l.pos;
-		} else {
-			lightDir = l.pos - hitAt;
+		addLighting(lightColour, lights[i], c, rayDirection);
+	}
+	/*DEBUG*/return lightColour + debugColour;/*/*//*
+	return lightColour;//*/
+}
+
+bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist){
+	//Loop through each plane
+	for(int i=0; i<planes.length(); i++){
+		if(hasPlaneCollision(planes[i], rayOrigin, rayDirection, minDist, maxDist)) {
+			//return true;
 		}
-		float dist = length(lightDir);
-		lightDir /= dist; //Normalize
-		//For efficiency don't calculate effect of distant light sources
-		//Also check for shadows here
-		if((l.isDirectional>0.0 || dist < l.maxDist)) {
+	}
+	//Loop through each sphere
+	int listStart;
+	int listEnd;
+	DDA dda;
+	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
+		while(getNextSphereList(dda, listStart, listEnd)){
+			for(int i=listStart; i<listEnd; i++){
+				if(hasSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, minDist, maxDist)) {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+/*
+Reflections:
+Cast primary ray:
+If(NumReflections < MAX_DEPTH or Amount_Contributed > MIN_CONTR):
+	colour += GetPixelColour(Reflection_Ray)
+
+getPixelColour(Ray):
+	for each object:
+		Collision = GetCollision(Ray)
+	for each light:
+		PixelColour += ApplyLighting(Collision)
+	return PixelColour
+	
+getPixelColourReflect(Ray):
+	for each object:
+		Collision = GetCollision(Ray)
+	for each light:
+		PixelColour += ApplyLighting(Collision)
+	R = CalculateReflection(Collision)
+	if(ReflectionContributes(R)):
+		PixelColour += getPixelColourReflect(R) * ReflectAmount
+	return PixelColour
+
+getPixelColourReflectIter(Ray):
+	R = Ray
+	do:
+		PixelColour += getPixelColour(Ray) * ReflectAmount
+		R = CalculateReflection(Collision)
+	while(ReflectionContributes(R))
+	return PixelColour
+	
+*/
+ 
+
+void addLighting(inout vec3 lightColour, Light l, Collision c, vec3 rayDirection){
+	vec3 lightDir;
+	if(l.isDirectional>0.0){
+		lightDir = -l.pos;
+	} else {
+		lightDir = l.pos - c.hitAt;
+	}
+	float dist = length(lightDir);
+	lightDir /= dist; //Normalize
+	//For efficiency don't calculate effect of distant light sources
+	//Also check for shadows here
+	if((l.isDirectional>0.0 || dist < l.maxDist)) {
 #if (NUM_SHADOW_RAYS <= 0)
-			applyLighting(lightColour, lightDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, 1.0);
+		applyLighting(lightColour, lightDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, 1.0);
 #endif
 #if ((NUM_SHADOW_RAYS > 0) && (NUM_SHADOW_RAYS % 2 == 1))
-			float frac;
-			float maxDist;
-			if(l.isDirectional>0.0) {
-				frac = 1.0;
-				maxDist = -1.0;
-			} else {
-				frac = NUM_SHADOW_RAYS * NUM_SHADOW_RAYS;
-				maxDist = dist;
-			}
-			if(!hasCollision(hitAt, lightDir, BIAS, maxDist)){
-				applyLighting(lightColour, lightDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, frac);
-			}
+		float frac;
+		float maxDist;
+		if(l.isDirectional>0.0) {
+			frac = 1.0;
+			maxDist = 1.0 / 0.0;
+		} else {
+			frac = NUM_SHADOW_RAYS * NUM_SHADOW_RAYS;
+			maxDist = dist;
+		}
+		if(!hasCollision(c.hitAt, lightDir, BIAS, maxDist)){
+			applyLighting(lightColour, lightDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, frac);
+		}
 #endif
 /*
 Range from -LR to +LR
@@ -248,47 +279,44 @@ Fire ray in centre
 For NUM_SHADOW_RAYS/2 Fire ray in neg from centre at interval of LR / NUM_SHADOW_RAYS/2 
 */
 #if (NUM_SHADOW_RAYS > 1)
-			if(l.isDirectional <= 0.0){
-				vec3 lightUp = vec3(0.0, 1.0, 0.0);
-				vec3 lightRight = cross(lightDir, lightUp);
-				lightUp = cross(lightRight, lightDir);
-				int halfNumRays = NUM_SHADOW_RAYS/2;
-				lightRight *= l.radius / halfNumRays;
-				lightUp *= l.radius / halfNumRays;
-				for(int x = 1; x <= halfNumRays; x++) {
-					for(int y = 1; y <= halfNumRays; y++) {
-						vec3 newDir = (l.pos + lightRight * x + lightUp * y) - hitAt;
-						dist = length(newDir);
-						newDir /= dist;
-						if(!hasCollision(hitAt, newDir, BIAS, dist)){
-							applyLighting(lightColour, newDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
-						}
-						newDir = (l.pos - lightRight * x + lightUp * y) - hitAt;
-						dist = length(newDir);
-						newDir /= dist;
-						if(!hasCollision(hitAt, newDir, BIAS, dist)){
-							applyLighting(lightColour, newDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
-						}
-						newDir = (l.pos + lightRight * x - lightUp * y) - hitAt;
-						dist = length(newDir);
-						newDir /= dist;
-						if(!hasCollision(hitAt, newDir, BIAS, dist)){
-							applyLighting(lightColour, newDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
-						}
-						newDir = (l.pos - lightRight * x - lightUp * y) - hitAt;
-						dist = length(newDir);
-						newDir /= dist;
-						if(!hasCollision(hitAt, newDir, BIAS, dist)){
-							applyLighting(lightColour, newDir, hitNorm, rayDirection, l, hitShininess, hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
-						}
+		if(l.isDirectional <= 0.0){
+			vec3 lightUp = vec3(0.0, 1.0, 0.0);
+			vec3 lightRight = cross(lightDir, lightUp);
+			lightUp = cross(lightRight, lightDir);
+			int halfNumRays = NUM_SHADOW_RAYS/2;
+			lightRight *= l.radius / halfNumRays;
+			lightUp *= l.radius / halfNumRays;
+			for(int x = 1; x <= halfNumRays; x++) {
+				for(int y = 1; y <= halfNumRays; y++) {
+					vec3 newDir = (l.pos + lightRight * x + lightUp * y) - c.hitAt;
+					dist = length(newDir);
+					newDir /= dist;
+					if(!hasCollision(c.hitAt, newDir, BIAS, dist)){
+						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+					}
+					newDir = (l.pos - lightRight * x + lightUp * y) - c.hitAt;
+					dist = length(newDir);
+					newDir /= dist;
+					if(!hasCollision(c.hitAt, newDir, BIAS, dist)){
+						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+					}
+					newDir = (l.pos + lightRight * x - lightUp * y) - c.hitAt;
+					dist = length(newDir);
+					newDir /= dist;
+					if(!hasCollision(c.hitAt, newDir, BIAS, dist)){
+						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+					}
+					newDir = (l.pos - lightRight * x - lightUp * y) - c.hitAt;
+					dist = length(newDir);
+					newDir /= dist;
+					if(!hasCollision(c.hitAt, newDir, BIAS, dist)){
+						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
 					}
 				}
 			}
-#endif
 		}
+#endif
 	}
-	//return lightColour + debugColour;
-	return lightColour;
 }
 
 void applyLighting(inout vec3 lightColour, vec3 lightDir, vec3 hitNorm, vec3 rayDirection, Light l, float hitShininess, vec3 hitColour, float dist, float fraction){
@@ -302,65 +330,58 @@ void applyLighting(inout vec3 lightColour, vec3 lightDir, vec3 hitNorm, vec3 ray
 		att = 1.0;
 	}
 	lightColour += (hitColour * diff + spec) * l.colour * att / fraction;
-}
-
-bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist){
-	//Loop through each plane
-	for(int i=0; i<planes.length(); i++){
-		Plane p = planes[i];
-		// P = rO + t(rD)
-		// 0 = N . (P - p0)
-		// 0 = N . (p0 - rO + t(rD))
-		// t = (p0 - rO).N / (rD.N)
-		// If rD.N = 0: Parallel (For this treat as no intersection)
-		// If d < 0: Behind ray origin
-		float rDN = dot(rayDirection, p.norm);
-		//Check not zero (or very close to)
-		if(abs(rDN)>0.0001){
-			float t = dot((p.pos - rayOrigin), p.norm) / rDN;
-			if(t > minDist && (t <= maxDist || maxDist < 0)){
-				return true;
-			}
-		}
-	}
-	//Loop through each sphere
-	int listStart;
-	int listEnd;
-	DDA dda;
-	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
-		while(getNextSphereList(dda, listStart, listEnd)){
-			for(int i=listStart; i<listEnd; i++){
-				Sphere s = spheres[sphereLists[i]];
-				//Sphere s = spheres[i];
-				// P = rO + t(rD) //Ray equation
-				// r = |P - C|    //Sphere equation
-				////After much rearranging we get:
-				// t = -b +/- sqrt(b*b - c)
-				// Where:
-				// b = (rO - C) . rD
-				// c = (rO - C).(rO - C) - r*r
-				// If b * b - c < 0: No Solutions
-				// If b * b - c = 0: 1 Solution
-				// If b * b - c > 0: 2 Solutions
-				vec3 rOC = rayOrigin - s.pos;
-				float b = dot(rOC, rayDirection);
-				float c = dot(rOC, rOC) - s.radius * s.radius;
-				//Check for solution
-				float disc = b * b - c;
-				//Check for solution
-				if(disc >= 0.0){
-					float rt = sqrt(disc);
-					float first = -b + rt;
-					if(first >= minDist && (first <= maxDist || maxDist < 0)){
-						return true;
-					}
-				}
-			}
+} 
+void main(){
+	//Get the position of the current pixel
+	ivec2 pixelPos = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 screenSize = imageSize(imgOut);
+	//Calculate ray
+	//Use view matrix to set origin
+	vec3 rayOrigin = vec3(cameraMatrix * vec4(0.0, 0.0, 0.0, 1.0));
+	//Convert pixel position to world space
+	float x = cameraWidth * (pixelPos.x + 0.5) / screenSize.x - cameraWidth * 0.5;
+	float y = cameraHeight * (pixelPos.y + 0.5) / screenSize.y - cameraHeight * 0.5;
+	float z = cameraHeight / twiceTanFovY;
+	//Apply view matrix to direction
+	vec3 rayDirection = normalize(mat3(cameraMatrix) * vec3(x, y, z));
+	//Fire ray
+	vec3 pixelColour = getPixelColour(rayOrigin, rayDirection);
+	imageStore(imgOut, pixelPos, vec4(pixelColour, 1.0));
+} 
+// P = rO + t(rD)
+// 0 = N . (P - p0)
+// 0 = N . (p0 - rO + t(rD))
+// t = (p0 - rO).N / (rD.N)
+// If rD.N = 0: Parallel (For this treat as no intersection)
+// If t < 0: Behind ray origin
+bool getPlaneCollision(Plane p, vec3 rayOrigin, vec3 rayDirection, inout Collision c){
+	float rDN = dot(rayDirection, p.norm);
+	//Check not zero (or very close to)
+	if(abs(rDN)>0.0001 && dot(-rayDirection, p.norm) > 0.0) {
+		float t = dot((p.pos - rayOrigin), p.norm) / rDN;
+		if(t > 0.0 && t < c.dist){
+			c.hit = true;
+			c.dist = t;
+			c.hitAt = rayOrigin + c.dist * rayDirection;
+			c.hitNorm = p.norm;
+			c.hitShininess = p.shininess;
+			c.hitColour = p.colour;
+			return true;
 		}
 	}
 	return false;
 }
 
+bool hasPlaneCollision(Plane p, vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist) {
+	float rDN = dot(rayDirection, p.norm);
+	//Check not zero (or very close to)
+	if(abs(rDN)>0.0001){
+		float t = dot((p.pos - rayOrigin), p.norm) / rDN;
+		if(t > minDist && t <= maxDist){
+			return true;
+		}
+	}
+} 
 
 /*
 Store:
@@ -513,20 +534,57 @@ bool getNextSphereList(inout DDA dda, inout int listStart, inout int listEnd) {
 	listEnd = sphereGrid[index];
 	return true;
 } 
-void main(){
-	//Get the position of the current pixel
-	ivec2 pixelPos = ivec2(gl_GlobalInvocationID.xy);
-	ivec2 screenSize = imageSize(imgOut);
-	//Calculate ray
-	//Use view matrix to set origin
-	vec3 rayOrigin = vec3(cameraMatrix * vec4(0.0, 0.0, 0.0, 1.0));
-	//Convert pixel position to world space
-	float x = cameraWidth * (pixelPos.x + 0.5) / screenSize.x - cameraWidth * 0.5;
-	float y = cameraHeight * (pixelPos.y + 0.5) / screenSize.y - cameraHeight * 0.5;
-	float z = cameraHeight / twiceTanFovY;
-	//Apply view matrix to direction
-	vec3 rayDirection = normalize(mat3(cameraMatrix) * vec3(x, y, z));
-	//Fire ray
-	vec3 pixelColour = getPixelColour(rayOrigin, rayDirection);
-	imageStore(imgOut, pixelPos, vec4(pixelColour, 1.0));
+// P = rO + t(rD) //Ray equation
+// r = |P - C|    //Sphere equation
+////After much rearranging we get:
+// t = -b +/- sqrt(b*b - c)
+// Where:
+// b = (rO - C) . rD
+// c = (rO - C).(rO - C) - r*r
+// If b * b - c < 0: No Solutions
+// If b * b - c = 0: 1 Solution
+// If b * b - c > 0: 2 Solutions
+bool getSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, inout Collision col) {
+	vec3 rOC = rayOrigin - s.pos;
+	float b = dot(rOC, rayDirection);
+	float c = dot(rOC, rOC) - s.radius * s.radius;
+	float disc = b * b - c;
+	//Check for solution
+	if(disc >= 0.0){
+		float rt = sqrt(disc);
+		float first = -b + rt;
+		float second = -b - rt;
+		float closest = min(first, second);
+		//Closest is behind camera, try other one
+		if(closest < 0.0){
+			closest = max(first, second);
+		}
+		if(closest >= 0.0 && col.dist>closest){
+			col.dist = closest;
+			col.hit = true;
+			col.hitAt = rayOrigin + col.dist * rayDirection;
+			col.hitNorm = normalize(col.hitAt - s.pos);
+			col.hitColour = s.colour;
+			col.hitShininess = s.shininess;
+			return true;
+		}
+	}
+	return false;
+}
+
+bool hasSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist) {
+	vec3 rOC = rayOrigin - s.pos;
+	float b = dot(rOC, rayDirection);
+	float c = dot(rOC, rOC) - s.radius * s.radius;
+	//Check for solution
+	float disc = b * b - c;
+	//Check for solution
+	if(disc >= 0.0){
+		float rt = sqrt(disc);
+		float first = -b + rt;
+		if(first >= minDist && (first <= maxDist || maxDist < 0)){
+			return true;
+		}
+	}
+	return false;
 } 

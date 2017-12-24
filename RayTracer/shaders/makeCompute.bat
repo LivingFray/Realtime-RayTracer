@@ -1,5 +1,6 @@
 ::Small batch file that takes all the files in ./raytracer and concatenates them
-@echo off
+::@echo off
+chdir /D "%~dp0"
 del comp.glsl
 ::Append headers
 cd raytracer
