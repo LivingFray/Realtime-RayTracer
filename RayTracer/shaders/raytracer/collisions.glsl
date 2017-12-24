@@ -155,30 +155,8 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
 		while(getNextSphereList(dda, listStart, listEnd)){
 			for(int i=listStart; i<listEnd; i++){
-				Sphere s = spheres[sphereLists[i]];
-				//Sphere s = spheres[i];
-				// P = rO + t(rD) //Ray equation
-				// r = |P - C|    //Sphere equation
-				////After much rearranging we get:
-				// t = -b +/- sqrt(b*b - c)
-				// Where:
-				// b = (rO - C) . rD
-				// c = (rO - C).(rO - C) - r*r
-				// If b * b - c < 0: No Solutions
-				// If b * b - c = 0: 1 Solution
-				// If b * b - c > 0: 2 Solutions
-				vec3 rOC = rayOrigin - s.pos;
-				float b = dot(rOC, rayDirection);
-				float c = dot(rOC, rOC) - s.radius * s.radius;
-				//Check for solution
-				float disc = b * b - c;
-				//Check for solution
-				if(disc >= 0.0){
-					float rt = sqrt(disc);
-					float first = -b + rt;
-					if(first >= minDist && (first <= maxDist || maxDist < 0)){
-						return true;
-					}
+				if(hasCollision(spheres[sphereLists[i]], rayOrigin, rayDirection)) {
+					return true;
 				}
 			}
 		}

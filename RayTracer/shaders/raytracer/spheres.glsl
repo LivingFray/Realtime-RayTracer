@@ -35,3 +35,19 @@ bool getSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, inout Colli
 	}
 	return false;
 }
+
+bool hasSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection) {
+	vec3 rOC = rayOrigin - s.pos;
+	float b = dot(rOC, rayDirection);
+	float c = dot(rOC, rOC) - s.radius * s.radius;
+	//Check for solution
+	float disc = b * b - c;
+	//Check for solution
+	if(disc >= 0.0){
+		float rt = sqrt(disc);
+		float first = -b + rt;
+		if(first >= minDist && (first <= maxDist || maxDist < 0)){
+			return true;
+		}
+	}
+}

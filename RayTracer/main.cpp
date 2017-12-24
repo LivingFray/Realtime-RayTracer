@@ -4,6 +4,7 @@
 #include <glm\glm.hpp>
 #include <glm\gtc\matrix_transform.hpp>
 #include <vector>
+#include <stdlib.h>
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glfw3.lib")
 #pragma comment(lib, "glew32.lib")
@@ -369,6 +370,11 @@ void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vec
 	glUseProgram(0);
 }
 
+float randF(float min, float max) {
+	float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+	return r * (max - min) + min;
+}
+
 int main() {
 	//Initialise OpenGL
 	init(WIDTH, HEIGHT, "Ray Tracer");
@@ -384,16 +390,20 @@ int main() {
 
 	//Create test input
 	std::vector<Sphere> spheres;
-	int numSpheres = 3;
-	for (int x = 0; x < numSpheres; x++) {
-		for (int y = 0; y < numSpheres; y++) {
+	int numSpheres = 20;
+	float minX = -5.0f;
+	float minY = 0.0f;
+	float minZ = -5.0f;
+	float maxX = 5.0f;
+	float maxY = 10.0f;
+	float maxZ = 5.0f;
+	for (int i = 0; i < numSpheres; i++) {
 		struct Sphere newS;
-		newS.pos = glm::vec3(static_cast<float>(x * 2) - numSpheres / 2.0f, 1.0f, static_cast<float>(y * 2) - numSpheres / 2.0f);
+		newS.pos = glm::vec3(randF(minX, maxX), randF(minY, maxY), randF(minZ, maxZ));
 		newS.radius = 0.75f;
 		newS.colour = glm::vec3(1.0f, 0.0f, 0.0f);
 		newS.shininess = 64.0f;
 		spheres.push_back(newS);
-		}
 	}
 	std::vector<Plane> planes;
 	{
@@ -498,6 +508,8 @@ int main() {
 	double time = 0, lastTime = 0, dt = 0;
 	int frames = 0;
 	double timeSincePrinted = 0;
+	double minTime = INFINITY;
+	double maxTime = 0;
 #define FRAME_EVERY 10.0
 
 	//Disable VSYNC
@@ -512,6 +524,12 @@ int main() {
 		time = glfwGetTime();
 		dt = time - lastTime;
 		lastTime = time;
+		if (dt < minTime) {
+			minTime = dt;
+		}
+		if (dt > maxTime) {
+			maxTime = dt;
+		}
 		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
 			glUseProgram(compute.getProgram());
 			glUniform1i(glGetUniformLocation(compute.getProgram(), "debug"), 1);
@@ -525,8 +543,12 @@ int main() {
 		frames++;
 		timeSincePrinted += dt;
 		if (timeSincePrinted > FRAME_EVERY) {
-			std::cout << static_cast<float>(frames) / FRAME_EVERY << std::endl;
+			float avfps = static_cast<float>(frames) / FRAME_EVERY;
+			float avms = FRAME_EVERY / static_cast<float>(frames);
+			std::cout << "Minimum: " << minTime << "ms, Average: " << avms << "ms (" << avfps << "), Maximum: " << maxTime << "ms" << std::endl;
 			frames = 0;
+			minTime = INFINITY;
+			maxTime = 0;
 			timeSincePrinted -= FRAME_EVERY;
 		}
 
