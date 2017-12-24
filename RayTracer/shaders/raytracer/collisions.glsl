@@ -132,20 +132,8 @@ void applyLighting(inout vec3 lightColour, vec3 lightDir, vec3 hitNorm, vec3 ray
 bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist){
 	//Loop through each plane
 	for(int i=0; i<planes.length(); i++){
-		Plane p = planes[i];
-		// P = rO + t(rD)
-		// 0 = N . (P - p0)
-		// 0 = N . (p0 - rO + t(rD))
-		// t = (p0 - rO).N / (rD.N)
-		// If rD.N = 0: Parallel (For this treat as no intersection)
-		// If d < 0: Behind ray origin
-		float rDN = dot(rayDirection, p.norm);
-		//Check not zero (or very close to)
-		if(abs(rDN)>0.0001){
-			float t = dot((p.pos - rayOrigin), p.norm) / rDN;
-			if(t > minDist && (t <= maxDist || maxDist < 0)){
-				return true;
-			}
+		if(hasPlaneCollision(planes[i], rayOrigin, rayDirection) {
+			return true;
 		}
 	}
 	//Loop through each sphere
@@ -155,7 +143,7 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
 		while(getNextSphereList(dda, listStart, listEnd)){
 			for(int i=listStart; i<listEnd; i++){
-				if(hasCollision(spheres[sphereLists[i]], rayOrigin, rayDirection)) {
+				if(hasSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection)) {
 					return true;
 				}
 			}
@@ -171,7 +159,17 @@ If(NumReflections < MAX_DEPTH or Amount_Contributed > MIN_CONTR):
 	colour += GetPixelColour(Reflection_Ray)
 
 getPixelColour(Ray):
-	fireRay(Ray
-
+	for each object:
+		GetCollision(Ray)
+	for each light:
+		ApplyLighting(Collision)
+	return PixelColour
+	
+getPixelColourReflect(Ray):
+	for each object:
+		GetCollision(Ray)
+	for each light:
+		ApplyLighting(Collision)
+	return PixelColour
 
 */

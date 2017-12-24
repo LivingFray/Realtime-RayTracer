@@ -21,3 +21,14 @@ bool getPlaneCollision(Plane p, vec3 rayOrigin, vec3 rayDirection, inout Collisi
 	}
 	return false;
 }
+
+bool hasPlaneCollision(Plane p, vec3 rayOrigin, vec3 rayDirection) {
+	float rDN = dot(rayDirection, p.norm);
+	//Check not zero (or very close to)
+	if(abs(rDN)>0.0001){
+		float t = dot((p.pos - rayOrigin), p.norm) / rDN;
+		if(t > minDist && (t <= maxDist || maxDist < 0)){
+			return true;
+		}
+	}
+}
