@@ -384,7 +384,7 @@ int main() {
 
 	//Create test input
 	std::vector<Sphere> spheres;
-	int numSpheres = 2;
+	int numSpheres = 3;
 	for (int x = 0; x < numSpheres; x++) {
 		for (int y = 0; y < numSpheres; y++) {
 		struct Sphere newS;
@@ -400,14 +400,6 @@ int main() {
 		struct Plane newP;
 		newP.pos = glm::vec3(0.0f, 0.0f, 0.0f);
 		newP.norm = glm::vec3(0.0f, 1.0f, 0.0f);
-		newP.colour = glm::vec3(0.0f, 1.0f, 0.0f);
-		newP.shininess = 50.0f;
-		planes.push_back(newP);
-	}
-	{
-		struct Plane newP;
-		newP.pos = glm::vec3(0.0f, 8.0f, 0.0f);
-		newP.norm = glm::vec3(0.0f, -1.0f, 0.0f);
 		newP.colour = glm::vec3(0.0f, 1.0f, 0.0f);
 		newP.shininess = 50.0f;
 		planes.push_back(newP);
