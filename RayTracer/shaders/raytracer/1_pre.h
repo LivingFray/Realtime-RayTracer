@@ -4,20 +4,24 @@
 #define GROUP_SIZE 1
 layout(local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE, local_size_z = 1) in;
 
-//Structures must align to a multiple of 4 bytes
+//Structures must align to a multiple of 4 floats
 
 struct Sphere {
 	vec3 pos;
 	float radius;
 	vec3 colour;
 	float shininess;
+	float reflection;
+	float paddingA;
+	float paddingB;
+	float paddingC;
 };
 
 struct Plane {
 	vec3 pos;
 	float shininess;
 	vec3 norm;
-	float paddingA;
+	float reflection;
 	vec3 colour;
 	float paddingB;
 };

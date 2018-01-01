@@ -12,6 +12,6 @@ void main(){
 	//Apply view matrix to direction
 	vec3 rayDirection = normalize(mat3(cameraMatrix) * vec3(x, y, z));
 	//Fire ray
-	vec3 pixelColour = getPixelColour(rayOrigin, rayDirection);
+	vec3 pixelColour = getPixelColourReflect(rayOrigin, rayDirection);//getPixelColour(rayOrigin, rayDirection);
 	imageStore(imgOut, pixelPos, vec4(pixelColour, 1.0));
 }

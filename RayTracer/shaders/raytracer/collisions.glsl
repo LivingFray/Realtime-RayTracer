@@ -5,6 +5,7 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 	//
 	//Initial ray intersections
 	//
+	//For debug not using getCollision so as to allow for debug statements
 	Collision c;
 	//Start with infinite distance collision
 	c.dist = 1.0 / 0.0;
@@ -14,12 +15,12 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 	int listEnd;
 	DDA dda;
 	
-	/*DEBUG*/vec3 debugColour = vec3(0.0, 0.0, 0.0);//*/
+	//*DEBUG*/vec3 debugColour = vec3(0.0, 0.0, 0.0);//*/
 	//Track if a collision was made, if so no need to continue traversing grid
 	bool hitSphere = false;
 	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
 		while(getNextSphereList(dda, listStart, listEnd) && !hitSphere){
-			/*DEBUG*/debugColour += vec3(0.01, 0.01, 0.01);//*/
+			//*DEBUG*/debugColour += vec3(0.01, 0.01, 0.01);//*/
 			for(int i=listStart; i<listEnd; i++){
 				hitSphere = getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) || hitSphere;
 			}
@@ -31,7 +32,7 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 	}
 	//No collisions just draw the sky
 	if(!c.hit){
-		/*DEBUG*/return SKY_COLOR + debugColour;/*/*//*
+		//*DEBUG*/return SKY_COLOR + debugColour;/*/*//*
 		return SKY_COLOR;//*/
 	}
 	//
@@ -42,7 +43,7 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 	for(int i=0;i<lights.length(); i++){
 		addLighting(lightColour, lights[i], c, rayDirection);
 	}
-	/*DEBUG*/return lightColour + debugColour;/*/*//*
+	//*DEBUG*/return lightColour + debugColour;/*/*//*
 	return lightColour;//*/
 }
 
@@ -50,7 +51,7 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 	//Loop through each plane
 	for(int i=0; i<planes.length(); i++){
 		if(hasPlaneCollision(planes[i], rayOrigin, rayDirection, minDist, maxDist)) {
-			//return true;
+			return true;
 		}
 	}
 	//Loop through each sphere
@@ -59,7 +60,7 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 	DDA dda;
 	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
 		while(getNextSphereList(dda, listStart, listEnd)){
-			for(int i=listStart; i<listEnd; i++){
+			for(int i = listStart; i < listEnd; i++){
 				if(hasSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, minDist, maxDist)) {
 					return true;
 				}
@@ -67,6 +68,58 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 		}
 	}
 	return false;
+}
+
+Collision getCollision(vec3 rayOrigin, vec3 rayDirection) {
+	Collision c;
+	//Start with infinite distance collision
+	c.dist = 1.0 / 0.0;
+	c.hit = false;
+	//Loop through each sphere
+	int listStart;
+	int listEnd;
+	DDA dda;
+	//Track if a collision was made, if so no need to continue traversing grid
+	bool hitSphere = false;
+	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
+		while(getNextSphereList(dda, listStart, listEnd) && !hitSphere){
+			for(int i=listStart; i<listEnd; i++){
+				hitSphere = getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) || hitSphere;
+			}
+		}
+	}
+	//Loop through each plane
+	for(int i=0; i<planes.length(); i++){
+		getPlaneCollision(planes[i], rayOrigin, rayDirection, c);
+	}
+	return c;
+}
+
+vec3 getPixelColourReflect(vec3 rayOrigin, vec3 rayDirection) {
+	vec3 pixelColour = vec3(0.0, 0.0, 0.0);
+	float amount = 1.0;
+	for(int i = 0; i < MAX_DEPTH; i++){
+		Collision col = getCollision(rayOrigin, rayDirection);
+		if(!col.hit) {
+			//Sky
+			pixelColour += SKY_COLOR * amount;
+			break;
+		}
+		vec3 lightColour = vec3(0.0, 0.0, 0.0);
+		//Loop through each light to calculate lighting
+		for(int j=0;j<lights.length(); j++){
+			addLighting(lightColour, lights[j], col, rayDirection);
+		}
+		pixelColour += lightColour * (1.0 - col.reflection) * amount;
+		amount *= col.reflection; //Reduce contribution for next ray
+		if (amount < MIN_CONTR) {
+			break; //So little contribution not worth persuing
+		}
+		rayDirection = reflect(rayDirection, col.hitNorm);
+		//Prevent self intersection
+		rayOrigin = col.hitAt + rayDirection * BIAS;
+	}
+	return pixelColour;
 }
 
 /*

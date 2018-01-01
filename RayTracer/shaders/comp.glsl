@@ -4,20 +4,24 @@
 #define GROUP_SIZE 1
 layout(local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE, local_size_z = 1) in;
 
-//Structures must align to a multiple of 4 bytes
+//Structures must align to a multiple of 4 floats
 
 struct Sphere {
 	vec3 pos;
 	float radius;
 	vec3 colour;
 	float shininess;
+	float reflection;
+	float paddingA;
+	float paddingB;
+	float paddingC;
 };
 
 struct Plane {
 	vec3 pos;
 	float shininess;
 	vec3 norm;
-	float paddingA;
+	float reflection;
 	vec3 colour;
 	float paddingB;
 };
@@ -88,6 +92,7 @@ struct Collision {
 	vec3 hitColour;
 	float hitShininess;
 	bool hit;
+	float reflection;
 };
 
 //Prevent reflected rays colliding with the object they originated from
@@ -97,11 +102,21 @@ struct Collision {
 
 #define SKY_COLOR vec3(0.529, 0.808, 0.980)
 
+#define MAX_DEPTH 3
+
+#define MIN_CONTR 0.05
+
 //Gets the pixel colour where the ray hits
 vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection);
 
 //Returns if the ray hits anything
-bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist); 
+bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist);
+
+//Returns the closest collision along the ray 
+Collision getCollision(vec3 rayOrigin, vec3 rayDirection);
+
+//Gets the pixel colour where the ray hits, with relfection
+vec3 getPixelColourReflect(vec3 rayOrigin, vec3 rayDirection); 
 //Adds lighting to the pixel
 void addLighting(inout vec3 lightColour, Light l, Collision c, vec3 rayDirection);
 //Applies lighting to the pixel at 1/fraction the normal brightness
@@ -146,6 +161,7 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 	//
 	//Initial ray intersections
 	//
+	//For debug not using getCollision so as to allow for debug statements
 	Collision c;
 	//Start with infinite distance collision
 	c.dist = 1.0 / 0.0;
@@ -155,12 +171,12 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 	int listEnd;
 	DDA dda;
 	
-	/*DEBUG*/vec3 debugColour = vec3(0.0, 0.0, 0.0);//*/
+	//*DEBUG*/vec3 debugColour = vec3(0.0, 0.0, 0.0);//*/
 	//Track if a collision was made, if so no need to continue traversing grid
 	bool hitSphere = false;
 	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
 		while(getNextSphereList(dda, listStart, listEnd) && !hitSphere){
-			/*DEBUG*/debugColour += vec3(0.01, 0.01, 0.01);//*/
+			//*DEBUG*/debugColour += vec3(0.01, 0.01, 0.01);//*/
 			for(int i=listStart; i<listEnd; i++){
 				hitSphere = getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) || hitSphere;
 			}
@@ -172,7 +188,7 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 	}
 	//No collisions just draw the sky
 	if(!c.hit){
-		/*DEBUG*/return SKY_COLOR + debugColour;/*/*//*
+		//*DEBUG*/return SKY_COLOR + debugColour;/*/*//*
 		return SKY_COLOR;//*/
 	}
 	//
@@ -183,7 +199,7 @@ vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
 	for(int i=0;i<lights.length(); i++){
 		addLighting(lightColour, lights[i], c, rayDirection);
 	}
-	/*DEBUG*/return lightColour + debugColour;/*/*//*
+	//*DEBUG*/return lightColour + debugColour;/*/*//*
 	return lightColour;//*/
 }
 
@@ -191,7 +207,7 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 	//Loop through each plane
 	for(int i=0; i<planes.length(); i++){
 		if(hasPlaneCollision(planes[i], rayOrigin, rayDirection, minDist, maxDist)) {
-			//return true;
+			return true;
 		}
 	}
 	//Loop through each sphere
@@ -200,7 +216,7 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 	DDA dda;
 	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
 		while(getNextSphereList(dda, listStart, listEnd)){
-			for(int i=listStart; i<listEnd; i++){
+			for(int i = listStart; i < listEnd; i++){
 				if(hasSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, minDist, maxDist)) {
 					return true;
 				}
@@ -208,6 +224,58 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 		}
 	}
 	return false;
+}
+
+Collision getCollision(vec3 rayOrigin, vec3 rayDirection) {
+	Collision c;
+	//Start with infinite distance collision
+	c.dist = 1.0 / 0.0;
+	c.hit = false;
+	//Loop through each sphere
+	int listStart;
+	int listEnd;
+	DDA dda;
+	//Track if a collision was made, if so no need to continue traversing grid
+	bool hitSphere = false;
+	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
+		while(getNextSphereList(dda, listStart, listEnd) && !hitSphere){
+			for(int i=listStart; i<listEnd; i++){
+				hitSphere = getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) || hitSphere;
+			}
+		}
+	}
+	//Loop through each plane
+	for(int i=0; i<planes.length(); i++){
+		getPlaneCollision(planes[i], rayOrigin, rayDirection, c);
+	}
+	return c;
+}
+
+vec3 getPixelColourReflect(vec3 rayOrigin, vec3 rayDirection) {
+	vec3 pixelColour = vec3(0.0, 0.0, 0.0);
+	float amount = 1.0;
+	for(int i = 0; i < MAX_DEPTH; i++){
+		Collision col = getCollision(rayOrigin, rayDirection);
+		if(!col.hit) {
+			//Sky
+			pixelColour += SKY_COLOR * amount;
+			break;
+		}
+		vec3 lightColour = vec3(0.0, 0.0, 0.0);
+		//Loop through each light to calculate lighting
+		for(int j=0;j<lights.length(); j++){
+			addLighting(lightColour, lights[j], col, rayDirection);
+		}
+		pixelColour += lightColour * (1.0 - col.reflection) * amount;
+		amount *= col.reflection; //Reduce contribution for next ray
+		if (amount < MIN_CONTR) {
+			break; //So little contribution not worth persuing
+		}
+		rayDirection = reflect(rayDirection, col.hitNorm);
+		//Prevent self intersection
+		rayOrigin = col.hitAt + rayDirection * BIAS;
+	}
+	return pixelColour;
 }
 
 /*
@@ -345,7 +413,7 @@ void main(){
 	//Apply view matrix to direction
 	vec3 rayDirection = normalize(mat3(cameraMatrix) * vec3(x, y, z));
 	//Fire ray
-	vec3 pixelColour = getPixelColour(rayOrigin, rayDirection);
+	vec3 pixelColour = getPixelColourReflect(rayOrigin, rayDirection);//getPixelColour(rayOrigin, rayDirection);
 	imageStore(imgOut, pixelPos, vec4(pixelColour, 1.0));
 } 
 // P = rO + t(rD)
@@ -366,6 +434,7 @@ bool getPlaneCollision(Plane p, vec3 rayOrigin, vec3 rayDirection, inout Collisi
 			c.hitNorm = p.norm;
 			c.hitShininess = p.shininess;
 			c.hitColour = p.colour;
+			c.reflection = p.reflection;
 			return true;
 		}
 	}
@@ -381,6 +450,7 @@ bool hasPlaneCollision(Plane p, vec3 rayOrigin, vec3 rayDirection, float minDist
 			return true;
 		}
 	}
+	return false;
 } 
 
 /*
@@ -566,6 +636,7 @@ bool getSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, inout Colli
 			col.hitNorm = normalize(col.hitAt - s.pos);
 			col.hitColour = s.colour;
 			col.hitShininess = s.shininess;
+			col.reflection = s.reflection;
 			return true;
 		}
 	}

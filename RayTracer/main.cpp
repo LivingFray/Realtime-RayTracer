@@ -193,19 +193,23 @@ void updateCamera(double dt) {
 	camMat = glm::inverse(glm::lookAt(camPos, camPos + direction, up));
 }
 
-//Due to the wonders of byte alignment pad everything to be 4bytes
+//Due to the wonders of byte alignment pad everything to be 4 floats
 struct Sphere {
 	glm::vec3 pos;
 	float radius;
 	glm::vec3 colour;
 	float shininess;
+	float reflection;
+	float paddingA;
+	float paddingB;
+	float paddingC;
 };
 
 struct Plane {
 	glm::vec3 pos;
 	float shininess;
 	glm::vec3 norm;
-	float paddingA;
+	float reflection;
 	glm::vec3 colour;
 	float paddingB;
 };
@@ -403,6 +407,7 @@ int main() {
 		newS.radius = 0.75f;
 		newS.colour = glm::vec3(1.0f, 0.0f, 0.0f);
 		newS.shininess = 64.0f;
+		newS.reflection = randF(0.0f, 1.0f);
 		spheres.push_back(newS);
 	}
 	std::vector<Plane> planes;
@@ -412,6 +417,7 @@ int main() {
 		newP.norm = glm::vec3(0.0f, 1.0f, 0.0f);
 		newP.colour = glm::vec3(0.0f, 1.0f, 0.0f);
 		newP.shininess = 50.0f;
+		newP.reflection = 0.0f;
 		planes.push_back(newP);
 	}
 	std::vector<Light> lights;

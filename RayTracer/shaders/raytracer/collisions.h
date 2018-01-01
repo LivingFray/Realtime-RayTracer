@@ -18,6 +18,7 @@ struct Collision {
 	vec3 hitColour;
 	float hitShininess;
 	bool hit;
+	float reflection;
 };
 
 //Prevent reflected rays colliding with the object they originated from
@@ -27,8 +28,18 @@ struct Collision {
 
 #define SKY_COLOR vec3(0.529, 0.808, 0.980)
 
+#define MAX_DEPTH 3
+
+#define MIN_CONTR 0.05
+
 //Gets the pixel colour where the ray hits
 vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection);
 
 //Returns if the ray hits anything
 bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist);
+
+//Returns the closest collision along the ray 
+Collision getCollision(vec3 rayOrigin, vec3 rayDirection);
+
+//Gets the pixel colour where the ray hits, with relfection
+vec3 getPixelColourReflect(vec3 rayOrigin, vec3 rayDirection);

@@ -16,6 +16,7 @@ bool getPlaneCollision(Plane p, vec3 rayOrigin, vec3 rayDirection, inout Collisi
 			c.hitNorm = p.norm;
 			c.hitShininess = p.shininess;
 			c.hitColour = p.colour;
+			c.reflection = p.reflection;
 			return true;
 		}
 	}
@@ -31,4 +32,5 @@ bool hasPlaneCollision(Plane p, vec3 rayOrigin, vec3 rayDirection, float minDist
 			return true;
 		}
 	}
+	return false;
 }
