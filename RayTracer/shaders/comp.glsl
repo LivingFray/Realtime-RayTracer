@@ -9,21 +9,15 @@ layout(local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE, local_size_z = 1) i
 struct Sphere {
 	vec3 pos;
 	float radius;
-	vec3 colour;
-	float shininess;
-	float reflection;
-	float paddingA;
-	float paddingB;
-	float paddingC;
+	int material;
+	float paddingA, paddingB, paddingC;
 };
 
 struct Plane {
 	vec3 pos;
-	float shininess;
+	float paddingA;
 	vec3 norm;
-	float reflection;
-	vec3 colour;
-	float paddingB;
+	int material;
 };
 
 //Fun fact, not padding vec3s and putting it at the end breaks everything
@@ -38,6 +32,16 @@ struct Light {
 	float quadratic;
 	//Pre calc maximum distance light is visible from
 	float maxDist;
+};
+
+//TODO: Beer's law, textures, other things
+struct Material {
+	vec3 colour;
+	float shininess;
+	float reflection;
+	float refIndex;
+	bool opaque;
+	float paddingA;
 };
 
 //The image being written to
@@ -67,6 +71,10 @@ layout(std140, binding = 5) buffer LightBuffer {
 	Light lights[];
 };
 
+layout(std140, binding = 6) buffer MaterialBuffer {
+	Material materials[];
+};
+
 //Camera variables
 uniform float twiceTanFovY;
 uniform float cameraWidth;
@@ -89,10 +97,8 @@ struct Collision {
 	float dist;
 	vec3 hitAt;
 	vec3 hitNorm;
-	vec3 hitColour;
-	float hitShininess;
 	bool hit;
-	float reflection;
+	int material;
 };
 
 //Prevent reflected rays colliding with the object they originated from
@@ -105,9 +111,6 @@ struct Collision {
 #define MAX_DEPTH 3
 
 #define MIN_CONTR 0.05
-
-//Gets the pixel colour where the ray hits
-vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection);
 
 //Returns if the ray hits anything
 bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist);
@@ -155,53 +158,6 @@ bool getSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, inout Colli
 //Returns whether there exists a collision between the ray and the sphere
 bool hasSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist); 
 // /*DEBUG*/ => //*DEBUG*/ Toggles a debug line
-
-//Finds the colour at the point the ray hits
-vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
-	//
-	//Initial ray intersections
-	//
-	//For debug not using getCollision so as to allow for debug statements
-	Collision c;
-	//Start with infinite distance collision
-	c.dist = 1.0 / 0.0;
-	c.hit = false;
-	//Loop through each sphere
-	int listStart;
-	int listEnd;
-	DDA dda;
-	
-	//*DEBUG*/vec3 debugColour = vec3(0.0, 0.0, 0.0);//*/
-	//Track if a collision was made, if so no need to continue traversing grid
-	bool hitSphere = false;
-	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
-		while(getNextSphereList(dda, listStart, listEnd) && !hitSphere){
-			//*DEBUG*/debugColour += vec3(0.01, 0.01, 0.01);//*/
-			for(int i=listStart; i<listEnd; i++){
-				hitSphere = getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) || hitSphere;
-			}
-		}
-	}
-	//Loop through each plane
-	for(int i=0; i<planes.length(); i++){
-		getPlaneCollision(planes[i], rayOrigin, rayDirection, c);
-	}
-	//No collisions just draw the sky
-	if(!c.hit){
-		//*DEBUG*/return SKY_COLOR + debugColour;/*/*//*
-		return SKY_COLOR;//*/
-	}
-	//
-	//Lighting
-	//
-	vec3 lightColour = vec3(0.0, 0.0, 0.0);//Add ambient here?
-	//Loop through each light to calculate lighting
-	for(int i=0;i<lights.length(); i++){
-		addLighting(lightColour, lights[i], c, rayDirection);
-	}
-	//*DEBUG*/return lightColour + debugColour;/*/*//*
-	return lightColour;//*/
-}
 
 bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist){
 	//Loop through each plane
@@ -263,11 +219,13 @@ vec3 getPixelColourReflect(vec3 rayOrigin, vec3 rayDirection) {
 		}
 		vec3 lightColour = vec3(0.0, 0.0, 0.0);
 		//Loop through each light to calculate lighting
+		//TODO: Skip if too reflective
 		for(int j=0;j<lights.length(); j++){
 			addLighting(lightColour, lights[j], col, rayDirection);
 		}
-		pixelColour += lightColour * (1.0 - col.reflection) * amount;
-		amount *= col.reflection; //Reduce contribution for next ray
+		Material m = materials[col.material];
+		pixelColour += lightColour * (1.0 - m.reflection) * amount;
+		amount *= m.reflection; //Reduce contribution for next ray
 		if (amount < MIN_CONTR) {
 			break; //So little contribution not worth persuing
 		}
@@ -323,9 +281,10 @@ void addLighting(inout vec3 lightColour, Light l, Collision c, vec3 rayDirection
 	lightDir /= dist; //Normalize
 	//For efficiency don't calculate effect of distant light sources
 	//Also check for shadows here
+	Material m = materials[c.material];
 	if((l.isDirectional>0.0 || dist < l.maxDist)) {
 #if (NUM_SHADOW_RAYS <= 0)
-		applyLighting(lightColour, lightDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, 1.0);
+		applyLighting(lightColour, lightDir, c.hitNorm, rayDirection, l, m.shininess, m.colour, dist, 1.0);
 #endif
 #if ((NUM_SHADOW_RAYS > 0) && (NUM_SHADOW_RAYS % 2 == 1))
 		float frac;
@@ -338,7 +297,7 @@ void addLighting(inout vec3 lightColour, Light l, Collision c, vec3 rayDirection
 			maxDist = dist;
 		}
 		if(!hasCollision(c.hitAt, lightDir, BIAS, maxDist)){
-			applyLighting(lightColour, lightDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, frac);
+			applyLighting(lightColour, lightDir, c.hitNorm, rayDirection, l, m.shininess, m.colour, dist, frac);
 		}
 #endif
 /*
@@ -360,25 +319,25 @@ For NUM_SHADOW_RAYS/2 Fire ray in neg from centre at interval of LR / NUM_SHADOW
 					dist = length(newDir);
 					newDir /= dist;
 					if(!hasCollision(c.hitAt, newDir, BIAS, dist)){
-						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, m.shininess, m.colour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
 					}
 					newDir = (l.pos - lightRight * x + lightUp * y) - c.hitAt;
 					dist = length(newDir);
 					newDir /= dist;
 					if(!hasCollision(c.hitAt, newDir, BIAS, dist)){
-						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, m.shininess, m.colour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
 					}
 					newDir = (l.pos + lightRight * x - lightUp * y) - c.hitAt;
 					dist = length(newDir);
 					newDir /= dist;
 					if(!hasCollision(c.hitAt, newDir, BIAS, dist)){
-						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, m.shininess, m.colour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
 					}
 					newDir = (l.pos - lightRight * x - lightUp * y) - c.hitAt;
 					dist = length(newDir);
 					newDir /= dist;
 					if(!hasCollision(c.hitAt, newDir, BIAS, dist)){
-						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, m.shininess, m.colour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
 					}
 				}
 			}
@@ -432,9 +391,7 @@ bool getPlaneCollision(Plane p, vec3 rayOrigin, vec3 rayDirection, inout Collisi
 			c.dist = t;
 			c.hitAt = rayOrigin + c.dist * rayDirection;
 			c.hitNorm = p.norm;
-			c.hitShininess = p.shininess;
-			c.hitColour = p.colour;
-			c.reflection = p.reflection;
+			c.material = p.material;
 			return true;
 		}
 	}
@@ -634,9 +591,7 @@ bool getSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, inout Colli
 			col.hit = true;
 			col.hitAt = rayOrigin + col.dist * rayDirection;
 			col.hitNorm = normalize(col.hitAt - s.pos);
-			col.hitColour = s.colour;
-			col.hitShininess = s.shininess;
-			col.reflection = s.reflection;
+			col.material = s.material;
 			return true;
 		}
 	}

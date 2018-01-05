@@ -197,21 +197,15 @@ void updateCamera(double dt) {
 struct Sphere {
 	glm::vec3 pos;
 	float radius;
-	glm::vec3 colour;
-	float shininess;
-	float reflection;
-	float paddingA;
-	float paddingB;
-	float paddingC;
+	int material;
+	float paddingA, paddingB, paddingC;
 };
 
 struct Plane {
 	glm::vec3 pos;
-	float shininess;
+	float paddingA;
 	glm::vec3 norm;
-	float reflection;
-	glm::vec3 colour;
-	float paddingB;
+	int material;
 };
 
 struct Light {
@@ -226,6 +220,14 @@ struct Light {
 	float maxDist;
 };
 
+struct Material {
+	glm::vec3 colour;
+	float shininess;
+	float reflection;
+	float refIndex;
+	bool opaque;
+	float paddingA;
+};
 
 int inline getGrid(float pos, float size, float minCoord, int numGrids) {
 	return glm::clamp(static_cast<int>(ceil((pos - minCoord) * size)), 0, numGrids - 1);
@@ -405,9 +407,7 @@ int main() {
 		struct Sphere newS;
 		newS.pos = glm::vec3(randF(minX, maxX), randF(minY, maxY), randF(minZ, maxZ));
 		newS.radius = 0.75f;
-		newS.colour = glm::vec3(1.0f, 0.0f, 0.0f);
-		newS.shininess = 64.0f;
-		newS.reflection = 0.0f;//randF(0.0f, 1.0f);
+		newS.material = 0;
 		spheres.push_back(newS);
 	}
 	std::vector<Plane> planes;
@@ -415,9 +415,7 @@ int main() {
 		struct Plane newP;
 		newP.pos = glm::vec3(0.0f, 0.0f, 0.0f);
 		newP.norm = glm::vec3(0.0f, 1.0f, 0.0f);
-		newP.colour = glm::vec3(0.0f, 1.0f, 0.0f);
-		newP.shininess = 50.0f;
-		newP.reflection = 0.90f;
+		newP.material = 1;
 		planes.push_back(newP);
 	}
 	std::vector<Light> lights;
@@ -439,6 +437,23 @@ int main() {
 		newL.colour = glm::vec3(0.3f, 0.3f, 0.3f);
 		newL.isDirectional = 1.0f;
 		lights.push_back(newL);
+	}
+	std::vector<Material> materials;
+	{
+		struct Material newM;
+		newM.colour = glm::vec3(0.2f, 0.7f, 0.1f);
+		newM.opaque = true;
+		newM.refIndex = 1.5;
+		newM.reflection = 0.0f;
+		newM.shininess = 50.0f;
+		materials.push_back(newM);
+
+		newM.colour = glm::vec3(1.0f, 1.0f, 1.0f);
+		newM.opaque = true;
+		newM.refIndex = 1.5;
+		newM.reflection = 0.85f;
+		newM.shininess = 50.0f;
+		materials.push_back(newM);
 	}
 	std::vector<int> grid;
 	std::vector<int> list;
@@ -475,6 +490,12 @@ int main() {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightSSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, lights.size() * sizeof(Light), &lights[0], GL_STATIC_DRAW);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, lightSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	GLuint materialSSBO;
+	glGenBuffers(1, &materialSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, materialSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, materials.size() * sizeof(Material), &materials[0], GL_STATIC_DRAW);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, materialSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
 	//Set camera properties

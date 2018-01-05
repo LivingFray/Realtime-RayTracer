@@ -10,9 +10,10 @@ void addLighting(inout vec3 lightColour, Light l, Collision c, vec3 rayDirection
 	lightDir /= dist; //Normalize
 	//For efficiency don't calculate effect of distant light sources
 	//Also check for shadows here
+	Material m = materials[c.material];
 	if((l.isDirectional>0.0 || dist < l.maxDist)) {
 #if (NUM_SHADOW_RAYS <= 0)
-		applyLighting(lightColour, lightDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, 1.0);
+		applyLighting(lightColour, lightDir, c.hitNorm, rayDirection, l, m.shininess, m.colour, dist, 1.0);
 #endif
 #if ((NUM_SHADOW_RAYS > 0) && (NUM_SHADOW_RAYS % 2 == 1))
 		float frac;
@@ -25,7 +26,7 @@ void addLighting(inout vec3 lightColour, Light l, Collision c, vec3 rayDirection
 			maxDist = dist;
 		}
 		if(!hasCollision(c.hitAt, lightDir, BIAS, maxDist)){
-			applyLighting(lightColour, lightDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, frac);
+			applyLighting(lightColour, lightDir, c.hitNorm, rayDirection, l, m.shininess, m.colour, dist, frac);
 		}
 #endif
 /*
@@ -47,25 +48,25 @@ For NUM_SHADOW_RAYS/2 Fire ray in neg from centre at interval of LR / NUM_SHADOW
 					dist = length(newDir);
 					newDir /= dist;
 					if(!hasCollision(c.hitAt, newDir, BIAS, dist)){
-						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, m.shininess, m.colour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
 					}
 					newDir = (l.pos - lightRight * x + lightUp * y) - c.hitAt;
 					dist = length(newDir);
 					newDir /= dist;
 					if(!hasCollision(c.hitAt, newDir, BIAS, dist)){
-						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, m.shininess, m.colour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
 					}
 					newDir = (l.pos + lightRight * x - lightUp * y) - c.hitAt;
 					dist = length(newDir);
 					newDir /= dist;
 					if(!hasCollision(c.hitAt, newDir, BIAS, dist)){
-						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, m.shininess, m.colour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
 					}
 					newDir = (l.pos - lightRight * x - lightUp * y) - c.hitAt;
 					dist = length(newDir);
 					newDir /= dist;
 					if(!hasCollision(c.hitAt, newDir, BIAS, dist)){
-						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, c.hitShininess, c.hitColour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
+						applyLighting(lightColour, newDir, c.hitNorm, rayDirection, l, m.shininess, m.colour, dist, NUM_SHADOW_RAYS * NUM_SHADOW_RAYS);
 					}
 				}
 			}

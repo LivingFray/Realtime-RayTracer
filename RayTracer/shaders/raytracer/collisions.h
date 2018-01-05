@@ -15,10 +15,8 @@ struct Collision {
 	float dist;
 	vec3 hitAt;
 	vec3 hitNorm;
-	vec3 hitColour;
-	float hitShininess;
 	bool hit;
-	float reflection;
+	int material;
 };
 
 //Prevent reflected rays colliding with the object they originated from
@@ -31,9 +29,6 @@ struct Collision {
 #define MAX_DEPTH 3
 
 #define MIN_CONTR 0.05
-
-//Gets the pixel colour where the ray hits
-vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection);
 
 //Returns if the ray hits anything
 bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist);

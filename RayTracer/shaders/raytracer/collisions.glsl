@@ -1,52 +1,5 @@
 // /*DEBUG*/ => //*DEBUG*/ Toggles a debug line
 
-//Finds the colour at the point the ray hits
-vec3 getPixelColour(vec3 rayOrigin, vec3 rayDirection){
-	//
-	//Initial ray intersections
-	//
-	//For debug not using getCollision so as to allow for debug statements
-	Collision c;
-	//Start with infinite distance collision
-	c.dist = 1.0 / 0.0;
-	c.hit = false;
-	//Loop through each sphere
-	int listStart;
-	int listEnd;
-	DDA dda;
-	
-	//*DEBUG*/vec3 debugColour = vec3(0.0, 0.0, 0.0);//*/
-	//Track if a collision was made, if so no need to continue traversing grid
-	bool hitSphere = false;
-	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
-		while(getNextSphereList(dda, listStart, listEnd) && !hitSphere){
-			//*DEBUG*/debugColour += vec3(0.01, 0.01, 0.01);//*/
-			for(int i=listStart; i<listEnd; i++){
-				hitSphere = getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) || hitSphere;
-			}
-		}
-	}
-	//Loop through each plane
-	for(int i=0; i<planes.length(); i++){
-		getPlaneCollision(planes[i], rayOrigin, rayDirection, c);
-	}
-	//No collisions just draw the sky
-	if(!c.hit){
-		//*DEBUG*/return SKY_COLOR + debugColour;/*/*//*
-		return SKY_COLOR;//*/
-	}
-	//
-	//Lighting
-	//
-	vec3 lightColour = vec3(0.0, 0.0, 0.0);//Add ambient here?
-	//Loop through each light to calculate lighting
-	for(int i=0;i<lights.length(); i++){
-		addLighting(lightColour, lights[i], c, rayDirection);
-	}
-	//*DEBUG*/return lightColour + debugColour;/*/*//*
-	return lightColour;//*/
-}
-
 bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist){
 	//Loop through each plane
 	for(int i=0; i<planes.length(); i++){
@@ -107,11 +60,13 @@ vec3 getPixelColourReflect(vec3 rayOrigin, vec3 rayDirection) {
 		}
 		vec3 lightColour = vec3(0.0, 0.0, 0.0);
 		//Loop through each light to calculate lighting
+		//TODO: Skip if too reflective
 		for(int j=0;j<lights.length(); j++){
 			addLighting(lightColour, lights[j], col, rayDirection);
 		}
-		pixelColour += lightColour * (1.0 - col.reflection) * amount;
-		amount *= col.reflection; //Reduce contribution for next ray
+		Material m = materials[col.material];
+		pixelColour += lightColour * (1.0 - m.reflection) * amount;
+		amount *= m.reflection; //Reduce contribution for next ray
 		if (amount < MIN_CONTR) {
 			break; //So little contribution not worth persuing
 		}

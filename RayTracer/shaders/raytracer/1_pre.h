@@ -9,21 +9,15 @@ layout(local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE, local_size_z = 1) i
 struct Sphere {
 	vec3 pos;
 	float radius;
-	vec3 colour;
-	float shininess;
-	float reflection;
-	float paddingA;
-	float paddingB;
-	float paddingC;
+	int material;
+	float paddingA, paddingB, paddingC;
 };
 
 struct Plane {
 	vec3 pos;
-	float shininess;
+	float paddingA;
 	vec3 norm;
-	float reflection;
-	vec3 colour;
-	float paddingB;
+	int material;
 };
 
 //Fun fact, not padding vec3s and putting it at the end breaks everything
@@ -38,6 +32,16 @@ struct Light {
 	float quadratic;
 	//Pre calc maximum distance light is visible from
 	float maxDist;
+};
+
+//TODO: Beer's law, textures, other things
+struct Material {
+	vec3 colour;
+	float shininess;
+	float reflection;
+	float refIndex;
+	bool opaque;
+	float paddingA;
 };
 
 //The image being written to
@@ -65,6 +69,10 @@ layout(std140, binding = 4) buffer PlaneBuffer {
 
 layout(std140, binding = 5) buffer LightBuffer {
 	Light lights[];
+};
+
+layout(std140, binding = 6) buffer MaterialBuffer {
+	Material materials[];
 };
 
 //Camera variables

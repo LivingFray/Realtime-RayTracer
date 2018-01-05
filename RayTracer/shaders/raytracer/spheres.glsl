@@ -28,9 +28,7 @@ bool getSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, inout Colli
 			col.hit = true;
 			col.hitAt = rayOrigin + col.dist * rayDirection;
 			col.hitNorm = normalize(col.hitAt - s.pos);
-			col.hitColour = s.colour;
-			col.hitShininess = s.shininess;
-			col.reflection = s.reflection;
+			col.material = s.material;
 			return true;
 		}
 	}
