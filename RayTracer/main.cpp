@@ -237,7 +237,7 @@ to the first index of a list of vertices. Relevant primitves are determined by
 accessing the primitives list from index currentGrid.value to (currentGrid+1).value
 
 */
-#define DENSITY 128.0f
+#define DENSITY 1.0f
 void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vector<int>& lists, GLuint id) {
 	//Determine bounding box for grid
 	float minX, minY, minZ, maxX, maxY, maxZ;
@@ -268,9 +268,9 @@ void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vec
 	float dY = maxY - minY;
 	float dZ = maxZ - minZ;
 	float size = pow((DENSITY * spheres.size()) / (dX * dY * dZ), 1 / 3.0f);
-	int nX = static_cast<int>(ceil(dX / size));
-	int nY = static_cast<int>(ceil(dY / size));
-	int nZ = static_cast<int>(ceil(dZ / size));
+	int nX = static_cast<int>(ceil(dX * size));
+	int nY = static_cast<int>(ceil(dY * size));
+	int nZ = static_cast<int>(ceil(dZ * size));
 	float sizeX = dX / static_cast<float>(nX);
 	float sizeY = dY / static_cast<float>(nY);
 	float sizeZ = dZ / static_cast<float>(nZ);
@@ -407,7 +407,7 @@ int main() {
 		newS.radius = 0.75f;
 		newS.colour = glm::vec3(1.0f, 0.0f, 0.0f);
 		newS.shininess = 64.0f;
-		newS.reflection = randF(0.0f, 1.0f);
+		newS.reflection = 0.0f;//randF(0.0f, 1.0f);
 		spheres.push_back(newS);
 	}
 	std::vector<Plane> planes;
@@ -417,7 +417,7 @@ int main() {
 		newP.norm = glm::vec3(0.0f, 1.0f, 0.0f);
 		newP.colour = glm::vec3(0.0f, 1.0f, 0.0f);
 		newP.shininess = 50.0f;
-		newP.reflection = 0.0f;
+		newP.reflection = 0.90f;
 		planes.push_back(newP);
 	}
 	std::vector<Light> lights;
