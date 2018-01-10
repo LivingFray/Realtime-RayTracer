@@ -59,14 +59,21 @@ vec3 getPixelColourReflect(vec3 rayOrigin, vec3 rayDirection) {
 			break;
 		}
 		vec3 lightColour = vec3(0.0, 0.0, 0.0);
-		//Loop through each light to calculate lighting
-		//TODO: Skip if too reflective
-		for(int j=0;j<lights.length(); j++){
-			addLighting(lightColour, lights[j], col, rayDirection);
-		}
 		Material m = materials[col.material];
-		pixelColour += lightColour * (1.0 - m.reflection) * amount;
-		amount *= m.reflection; //Reduce contribution for next ray
+		if(m.opaque) {
+			//Loop through each light to calculate lighting
+			//TODO: Skip if too reflective
+			for(int j=0;j<lights.length(); j++){
+				addLighting(lightColour, lights[j], col, rayDirection);
+			}
+		} else {
+			//Refraction
+			
+		}
+		//TODO: Inside -> Outside fresnel
+		float r = getFresnel(1.0, m.refIndex, rayDirection, col.hitNorm, m.reflection);
+		pixelColour += lightColour * (1.0 - r) * amount;
+		amount *= r; //Reduce contribution for next ray
 		if (amount < MIN_CONTR) {
 			break; //So little contribution not worth persuing
 		}
@@ -75,6 +82,26 @@ vec3 getPixelColourReflect(vec3 rayOrigin, vec3 rayDirection) {
 		rayOrigin = col.hitAt + rayDirection * BIAS;
 	}
 	return pixelColour;
+}
+
+float getFresnel(float currentInd, float newInd, vec3 normal, vec3 incident, float reflectivity) {
+	if(reflectivity == 0.0) {
+		return 0.0;
+	}
+	float r0 = (currentInd - newInd) / (currentInd + newInd);
+	r0 *= r0;
+	float cosX = -dot(normal, incident);
+	if (currentInd > newInd) {
+		float ratio = currentInd / newInd;
+		float sinT2 = ratio * ratio * (1.0 - cosX * cosX);
+		if (sinT2 > 1.0) {
+			return 1.0;
+		}
+		cosX = sqrt(1.0 - sinT2);
+	}
+	float x = 1.0 - cosX;
+	
+	return reflectivity + (1.0 - reflectivity) * (r0 + (1.0 - r0) * x * x * x * x * x);
 }
 
 /*

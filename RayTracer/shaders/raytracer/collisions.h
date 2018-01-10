@@ -38,3 +38,5 @@ Collision getCollision(vec3 rayOrigin, vec3 rayDirection);
 
 //Gets the pixel colour where the ray hits, with relfection
 vec3 getPixelColourReflect(vec3 rayOrigin, vec3 rayDirection);
+
+float getFresnel(float currentInd, float newInd, vec3 normal, vec3 incident, float reflectivity);
