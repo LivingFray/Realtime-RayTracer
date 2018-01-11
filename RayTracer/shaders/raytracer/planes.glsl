@@ -12,8 +12,8 @@ bool getPlaneCollision(Plane p, vec3 rayOrigin, vec3 rayDirection, inout Collisi
 		if(t > 0.0 && t < c.dist){
 			c.hit = true;
 			c.dist = t;
-			c.hitAt = rayOrigin + c.dist * rayDirection;
-			c.hitNorm = p.norm;
+			c.pos = rayOrigin + c.dist * rayDirection;
+			c.norm = p.norm;
 			c.material = p.material;
 			return true;
 		}

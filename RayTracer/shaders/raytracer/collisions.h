@@ -13,8 +13,8 @@ uniform float gridMaxZ;
 
 struct Collision {
 	float dist;
-	vec3 hitAt;
-	vec3 hitNorm;
+	vec3 pos;
+	vec3 norm;
 	bool hit;
 	int material;
 };
@@ -28,7 +28,7 @@ struct Collision {
 
 #define MAX_DEPTH 3
 
-#define MIN_CONTR 0.05
+#define MIN_CONTR 0.005
 
 //Returns if the ray hits anything
 bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist);

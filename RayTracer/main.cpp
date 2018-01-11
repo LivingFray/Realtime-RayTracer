@@ -225,7 +225,7 @@ struct Material {
 	float shininess;
 	float reflection;
 	float refIndex;
-	bool opaque;
+	int opaque;
 	float paddingA;
 };
 
@@ -396,7 +396,7 @@ int main() {
 
 	//Create test input
 	std::vector<Sphere> spheres;
-	int numSpheres = 20;
+	int numSpheres = 2;
 	float minX = -5.0f;
 	float minY = 0.0f;
 	float minZ = -5.0f;
@@ -410,6 +410,13 @@ int main() {
 		newS.material = 0;
 		spheres.push_back(newS);
 	}
+	{
+		struct Sphere newS;
+		newS.pos = glm::vec3(0.0f, 4.0f, 0.0f);
+		newS.radius = 1.5f;
+		newS.material = 2;
+		spheres.push_back(newS);
+	}
 	std::vector<Plane> planes;
 	{
 		struct Plane newP;
@@ -419,7 +426,7 @@ int main() {
 		planes.push_back(newP);
 	}
 	std::vector<Light> lights;
-	{
+	/*{
 		struct Light newL;
 		newL.pos = glm::vec3(0.0f, 4.0f, 0.0f);
 		newL.colour = glm::vec3(1.0f, 1.0f, 1.0f);
@@ -430,7 +437,7 @@ int main() {
 		newL.radius = 0.01f;
 		newL.maxDist = 20.0f;
 		lights.push_back(newL);
-	}
+	}*/
 	{
 		struct Light newL;
 		newL.pos = glm::vec3(0.0f, -1.0f, 0.0f);
@@ -442,16 +449,23 @@ int main() {
 	{
 		struct Material newM;
 		newM.colour = glm::vec3(0.2f, 0.7f, 0.1f);
-		newM.opaque = true;
+		newM.opaque = 1;
 		newM.refIndex = 1.5;
 		newM.reflection = 0.0f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 
 		newM.colour = glm::vec3(1.0f, 1.0f, 1.0f);
-		newM.opaque = true;
+		newM.opaque = 1;
 		newM.refIndex = 1.5;
-		newM.reflection = 0.85f;
+		newM.reflection = 0.1f;
+		newM.shininess = 50.0f;
+		materials.push_back(newM);
+
+		newM.colour = glm::vec3(1.0f, 1.0f, 1.0f);
+		newM.opaque = 0;
+		newM.refIndex = 1.05;
+		newM.reflection = 0.1f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 	}

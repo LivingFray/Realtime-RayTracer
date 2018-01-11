@@ -40,7 +40,7 @@ struct Material {
 	float shininess;
 	float reflection;
 	float refIndex;
-	bool opaque;
+	int opaque;
 	float paddingA;
 };
 

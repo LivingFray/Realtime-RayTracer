@@ -38,6 +38,7 @@ Collision getCollision(vec3 rayOrigin, vec3 rayDirection) {
 		while(getNextSphereList(dda, listStart, listEnd) && !hitSphere){
 			for(int i=listStart; i<listEnd; i++){
 				hitSphere = getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) || hitSphere;
+				hitSphere = false;																								//<<<<<<ISSUE WITH PREMATURE CUTOFF
 			}
 		}
 	}
@@ -60,7 +61,7 @@ vec3 getPixelColourReflect(vec3 rayOrigin, vec3 rayDirection) {
 		}
 		vec3 lightColour = vec3(0.0, 0.0, 0.0);
 		Material m = materials[col.material];
-		if(m.opaque) {
+		if(m.opaque != 0) {
 			//Loop through each light to calculate lighting
 			//TODO: Skip if too reflective
 			for(int j=0;j<lights.length(); j++){
@@ -71,21 +72,109 @@ vec3 getPixelColourReflect(vec3 rayOrigin, vec3 rayDirection) {
 			
 		}
 		//TODO: Inside -> Outside fresnel
-		float r = getFresnel(1.0, m.refIndex, rayDirection, col.hitNorm, m.reflection);
+		float r = getFresnel(1.0, m.refIndex, rayDirection, col.norm, m.reflection);
 		pixelColour += lightColour * (1.0 - r) * amount;
 		amount *= r; //Reduce contribution for next ray
 		if (amount < MIN_CONTR) {
 			break; //So little contribution not worth persuing
 		}
-		rayDirection = reflect(rayDirection, col.hitNorm);
+		rayDirection = reflect(rayDirection, col.norm);
 		//Prevent self intersection
-		rayOrigin = col.hitAt + rayDirection * BIAS;
+		rayOrigin = col.pos + rayDirection * BIAS;
+	}
+	return pixelColour;
+}
+
+vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
+	vec3 pixelColour = vec3(0.0, 0.0, 0.0);
+	struct AdditionalRay {
+		vec3 rayOrigin;
+		vec3 rayDirection;
+		float contr;
+		float refIndex;
+	};
+	struct Iteration {
+		AdditionalRay rays[2];
+		int numRays;
+	};
+	Iteration iterations[MAX_DEPTH];
+	int numIterations = 1;
+	AdditionalRay primaryRay;
+	primaryRay.rayOrigin = rayOrigin;
+	primaryRay.rayDirection = rayDirection;
+	primaryRay.contr = 1.0;
+	//TODO: FIX FOR RAYS ORIGINATING INSIDE AN OBJECT
+	primaryRay.refIndex = 1.0;
+	Iteration firstIter;
+	firstIter.rays[0] = primaryRay;
+	firstIter.numRays = 1;
+	iterations[0] = firstIter;
+	int iterExplored = 0;
+	while (numIterations > 0 && iterExplored < MAX_DEPTH) {
+		iterExplored++;
+		//Pop ray off stack
+		numIterations--;
+		Iteration it = iterations[numIterations];
+		//For each ray in current iteration, explore rays and add new rays to list
+		for(int i = 0; i < it.numRays; i++) {
+			AdditionalRay ray = it.rays[i];
+			Iteration nextIter;
+			nextIter.numRays = 0;
+			//Find collision
+			Collision col = getCollision(ray.rayOrigin, ray.rayDirection);
+			//If nothing hit, add the sky
+			if (!col.hit) {
+				pixelColour += SKY_COLOR * ray.contr;
+				continue;
+			}
+			//Get material of collided object
+			Material mat = materials[col.material];
+			//Get the proportion of light that is reflected
+			float reflectAmount = getFresnel(ray.refIndex, mat.refIndex, ray.rayDirection, col.norm, mat.reflection);
+			float transmitAmount = 1.0 - reflectAmount;
+			//If object is solid apply phong lighting
+			if (mat.opaque != 0) {
+				vec3 lightColour = vec3(0.0, 0.0, 0.0);
+				for(int j=0;j<lights.length(); j++){
+					addLighting(lightColour, lights[j], col, ray.rayDirection);
+				}
+				pixelColour += lightColour * transmitAmount * ray.contr;
+			} else if (transmitAmount > MIN_CONTR) {
+				//Apply refraction
+				AdditionalRay refractRay;
+				//Check arguments are correct way round
+				refractRay.rayDirection = refract(ray.rayDirection, col.norm, ray.refIndex / mat.refIndex);
+				refractRay.rayOrigin = col.pos + refractRay.rayDirection * BIAS;
+				refractRay.contr = ray.contr * transmitAmount;
+				refractRay.refIndex = mat.refIndex;
+				//Push new ray onto stack
+				nextIter.rays[nextIter.numRays] = refractRay;
+				nextIter.numRays++;
+				//TODO: Apply Beer's law here
+			}
+			if (reflectAmount > MIN_CONTR) {
+				//Apply Reflection
+				AdditionalRay reflectRay;
+				reflectRay.rayDirection = reflect(ray.rayDirection, col.norm);
+				reflectRay.rayOrigin = col.pos + reflectRay.rayDirection * BIAS;
+				reflectRay.contr = ray.contr * reflectAmount;
+				reflectRay.refIndex = ray.refIndex;
+				//Push new ray onto stack
+				nextIter.rays[nextIter.numRays] = reflectRay;
+				nextIter.numRays++;
+			}
+			//Add next iteration to list
+			if(numIterations < MAX_DEPTH) {
+				iterations[numIterations] = nextIter;
+				numIterations++;
+			}
+		}
 	}
 	return pixelColour;
 }
 
 float getFresnel(float currentInd, float newInd, vec3 normal, vec3 incident, float reflectivity) {
-	if(reflectivity == 0.0) {
+	if (reflectivity == 0.0) {
 		return 0.0;
 	}
 	float r0 = (currentInd - newInd) / (currentInd + newInd);
@@ -135,4 +224,72 @@ getPixelColourReflectIter(Ray):
 	while(ReflectionContributes(R))
 	return PixelColour
 	
+Reflection And Refraction:
+
+getPixelColourReflectAndRefract(Ray):
+	struct AdditionalRay {
+		Ray ray;
+		float contribution;
+		float refIndex;
+		//Beer's law stuff here
+	}
+	int amount;
+	int numRays = 0;
+	Stack<AdditionalRay> rays;
+	rays.push(AdditionalRay(Ray, 1.0, 1.0));
+	while(!rays.empty && numRays < MAX_DEPTH):
+		Ray r = rays.pop();
+		Collision c = getCollision(r);
+		Material m = c.materal;
+		float reflectAmount = getFresnel();
+		if(m.opaque):
+			PixelColour += applyLighting(m);
+		else if (1.0 - reflectAmount > MIN_CONTR):
+			ratio = r.refIndex / m.refIndex;
+			refractRay = AdditionalRay(refract(Ray, c.normal, ratio), r.contribution * (1.0 - reflectAmount), m.refIndex);
+			rays.push(refractRay);
+		if(reflectAmount > MIN_CONTR):
+			reflectRay = AdditionalRay(reflect(Ray, c.normal), r.contribution * reflectAmount, r.refIndex);
+			rays.push(reflectRay);
 */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
