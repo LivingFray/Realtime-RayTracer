@@ -20,6 +20,15 @@ struct Plane {
 	int material;
 };
 
+struct Triangle {
+	vec3 v1;
+	float paddingA;
+	vec3 v2;
+	float paddingB;
+	vec3 v3;
+	int material;
+};
+
 //Fun fact, not padding vec3s and putting it at the end breaks everything
 
 struct Light {
@@ -73,6 +82,11 @@ layout(std140, binding = 5) buffer LightBuffer {
 
 layout(std140, binding = 6) buffer MaterialBuffer {
 	Material materials[];
+};
+
+//TODO: Acceleration structure
+layout(std140, binding = 7) buffer TriangleBuffer {
+	Triangle triangles[];
 };
 
 //Camera variables
@@ -159,6 +173,10 @@ bool distToAABB(vec3 rayOrigin, vec3 rayDirection, inout float dist);
 bool getSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, inout Collision col);
 //Returns whether there exists a collision between the ray and the sphere
 bool hasSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist); 
+//Returns whether there was a collision and updates Collision struct accordingly
+bool getTriangleCollision(Triangle t, vec3 rayOrigin, vec3 rayDirection, inout Collision col);
+//Returns whether there exists a collision between the ray and the triangle
+bool hasTriangleCollision(Triangle t, vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist); 
 // /*DEBUG*/ => //*DEBUG*/ Toggles a debug line
 
 bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist){
@@ -181,6 +199,12 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 			}
 		}
 	}
+	//Loop through each triangle
+		for(int i=0; i<triangles.length(); i++){
+		if(hasTriangleCollision(triangles[i], rayOrigin, rayDirection, minDist, maxDist)) {
+			return true;
+		}
+	}
 	return false;
 }
 
@@ -199,13 +223,17 @@ Collision getCollision(vec3 rayOrigin, vec3 rayDirection) {
 		while(getNextSphereList(dda, listStart, listEnd) && !hitSphere){
 			for(int i=listStart; i<listEnd; i++){
 				hitSphere = getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) || hitSphere;
-				hitSphere = false;																								//<<<<<<ISSUE WITH PREMATURE CUTOFF
+				//hitSphere = false;																								//<<<<<<ISSUE WITH PREMATURE CUTOFF
 			}
 		}
 	}
 	//Loop through each plane
 	for(int i=0; i<planes.length(); i++){
 		getPlaneCollision(planes[i], rayOrigin, rayDirection, c);
+	}
+	//Loop through each triangle
+	for(int i=0; i<triangles.length(); i++){
+		getTriangleCollision(triangles[i], rayOrigin, rayDirection, c);
 	}
 	return c;
 }
@@ -252,7 +280,7 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 		vec3 rayOrigin;
 		vec3 rayDirection;
 		float contr;
-		float refIndex;
+		//float refIndex;
 	};
 	struct Iteration {
 		AdditionalRay rays[2];
@@ -265,7 +293,7 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 	primaryRay.rayDirection = rayDirection;
 	primaryRay.contr = 1.0;
 	//TODO: FIX FOR RAYS ORIGINATING INSIDE AN OBJECT
-	primaryRay.refIndex = 1.0;
+	//primaryRay.refIndex = 1.0;
 	Iteration firstIter;
 	firstIter.rays[0] = primaryRay;
 	firstIter.numRays = 1;
@@ -290,8 +318,18 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 			}
 			//Get material of collided object
 			Material mat = materials[col.material];
+			float startRef = 1.0;
+			float endRef = mat.refIndex;
+			bool flipped = false;
+			//Flip normal if hitting back of surface
+			if(dot(col.norm, rayDirection) > 0) {
+				col.norm *= -1;
+				flipped = true;
+				startRef = mat.refIndex;
+				endRef = 1.0;
+			}
 			//Get the proportion of light that is reflected
-			float reflectAmount = getFresnel(ray.refIndex, mat.refIndex, ray.rayDirection, col.norm, mat.reflection);
+			float reflectAmount = getFresnel(startRef, endRef, ray.rayDirection, col.norm, mat.reflection);
 			float transmitAmount = 1.0 - reflectAmount;
 			//If object is solid apply phong lighting
 			if (mat.opaque != 0) {
@@ -300,26 +338,26 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 					addLighting(lightColour, lights[j], col, ray.rayDirection);
 				}
 				pixelColour += lightColour * transmitAmount * ray.contr;
-			} else if (transmitAmount > MIN_CONTR) {
+			} else if (ray.contr * transmitAmount > MIN_CONTR) {
 				//Apply refraction
 				AdditionalRay refractRay;
 				//Check arguments are correct way round
-				refractRay.rayDirection = refract(ray.rayDirection, col.norm, ray.refIndex / mat.refIndex);
+				refractRay.rayDirection = refract(ray.rayDirection, col.norm, startRef / endRef);
 				refractRay.rayOrigin = col.pos + refractRay.rayDirection * BIAS;
 				refractRay.contr = ray.contr * transmitAmount;
-				refractRay.refIndex = mat.refIndex;
+				//refractRay.refIndex = mat.refIndex;
 				//Push new ray onto stack
 				nextIter.rays[nextIter.numRays] = refractRay;
 				nextIter.numRays++;
 				//TODO: Apply Beer's law here
 			}
-			if (reflectAmount > MIN_CONTR) {
+			if (ray.contr * reflectAmount > MIN_CONTR) {
 				//Apply Reflection
 				AdditionalRay reflectRay;
 				reflectRay.rayDirection = reflect(ray.rayDirection, col.norm);
 				reflectRay.rayOrigin = col.pos + reflectRay.rayDirection * BIAS;
 				reflectRay.contr = ray.contr * reflectAmount;
-				reflectRay.refIndex = ray.refIndex;
+				//reflectRay.refIndex = ray.refIndex;
 				//Push new ray onto stack
 				nextIter.rays[nextIter.numRays] = reflectRay;
 				nextIter.numRays++;
@@ -778,7 +816,7 @@ bool getSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, inout Colli
 			col.pos = rayOrigin + col.dist * rayDirection;
 			vec3 n = col.pos - s.pos;
 			//Flip normal if inside sphere
-			n *= length(n) > length(rayOrigin - s.pos) ? -1.0 : 1.0;
+			//n *= length(n) > length(rayOrigin - s.pos) ? -1.0 : 1.0;
 			col.norm = normalize(n);
 			
 			col.material = s.material;
@@ -803,4 +841,66 @@ bool hasSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, float minDi
 		}
 	}
 	return false;
+} 
+bool getTriangleCollision(Triangle t, vec3 rayOrigin, vec3 rayDirection, inout Collision col) {
+	vec3 edgeA = t.v2 - t.v1;
+	vec3 edgeB = t.v3 - t.v1;
+	//TODO DETERMINE WHAT H IS AND NAME SENSIBLY
+	vec3 h = cross(rayDirection, edgeB);
+	float a = dot(edgeA, h);
+	//Prevent divide by 0 errors
+	if (abs(a) < BIAS) {
+		return false;
+	}
+	float f = 1.0 / a;
+	vec3 s = rayOrigin - t.v1;
+	float u = f * dot(s, h);
+	if (u < 0.0 || u > 1.0) {
+		return false;
+	}
+	vec3 q = cross(s, edgeA);
+	float v = f * dot(rayDirection, q);
+	if (v < 0.0 || u + v > 1.0) {
+		return false;
+	}
+	// At this stage we can compute t to find out where the intersection point is on the line.
+	float dist = f * dot(edgeB, q);
+	// If t is positive, collided
+	if (dist > 0.0) {
+		col.dist = dist;
+		col.hit = true;
+		col.pos = rayOrigin + col.dist * rayDirection;
+		col.norm = normalize(cross(edgeA, edgeB));
+		col.material = t.material;
+		return true;
+	}
+	return false;
+}
+
+//Returns whether there exists a collision between the ray and the triangle
+bool hasTriangleCollision(Triangle t, vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist) {
+	vec3 edgeA = t.v2 - t.v1;
+	vec3 edgeB = t.v3 - t.v1;
+	//TODO DETERMINE WHAT H IS AND NAME SENSIBLY
+	vec3 h = cross(rayDirection, edgeB);
+	float a = dot(edgeA, h);
+	//Prevent divide by 0 errors
+	if (abs(a) < BIAS) {
+		return false;
+	}
+	float f = 1.0 / a;
+	vec3 s = rayOrigin - t.v1;
+	float u = f * dot(s, h);
+	if (u < 0.0 || u > 1.0) {
+		return false;
+	}
+	vec3 q = cross(s, edgeA);
+	float v = f * dot(rayDirection, q);
+	if (v < 0.0 || u + v > 1.0) {
+		return false;
+	}
+	// At this stage we can compute t to find out where the intersection point is on the line.
+	float dist = f * dot(edgeB, q);
+	// If t is positive, collided
+	return dist > 0;
 } 

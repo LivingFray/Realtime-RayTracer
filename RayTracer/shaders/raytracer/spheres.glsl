@@ -29,7 +29,7 @@ bool getSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, inout Colli
 			col.pos = rayOrigin + col.dist * rayDirection;
 			vec3 n = col.pos - s.pos;
 			//Flip normal if inside sphere
-			n *= length(n) > length(rayOrigin - s.pos) ? -1.0 : 1.0;
+			//n *= length(n) > length(rayOrigin - s.pos) ? -1.0 : 1.0;
 			col.norm = normalize(n);
 			
 			col.material = s.material;

@@ -208,6 +208,15 @@ struct Plane {
 	int material;
 };
 
+struct Triangle {
+	glm::vec3 v1;
+	float paddingA;
+	glm::vec3 v2;
+	float paddingB;
+	glm::vec3 v3;
+	int material;
+};
+
 struct Light {
 	glm::vec3 pos;
 	float isDirectional;
@@ -465,9 +474,18 @@ int main() {
 		newM.colour = glm::vec3(1.0f, 1.0f, 1.0f);
 		newM.opaque = 0;
 		newM.refIndex = 1.05;
-		newM.reflection = 0.1f;
+		newM.reflection = 0.5f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
+	}
+	std::vector<Triangle> triangles;
+	{
+		struct Triangle newT;
+		newT.v1 = glm::vec3(-10.0f, 20.0f, -10.0f);
+		newT.v2 = glm::vec3(10.0f, 20.0f, -10.0f);
+		newT.v3 = glm::vec3(0.0f, 20.0f, 10.0f);
+		newT.material = 1;
+		triangles.push_back(newT);
 	}
 	std::vector<int> grid;
 	std::vector<int> list;
@@ -510,6 +528,12 @@ int main() {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, materialSSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, materials.size() * sizeof(Material), &materials[0], GL_STATIC_DRAW);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, materialSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	GLuint triangleSSBO;
+	glGenBuffers(1, &triangleSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, triangleSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, triangles.size() * sizeof(Triangle), &triangles[0], GL_STATIC_DRAW);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, triangleSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
 	//Set camera properties

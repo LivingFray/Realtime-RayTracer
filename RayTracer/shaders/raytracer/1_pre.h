@@ -20,6 +20,15 @@ struct Plane {
 	int material;
 };
 
+struct Triangle {
+	vec3 v1;
+	float paddingA;
+	vec3 v2;
+	float paddingB;
+	vec3 v3;
+	int material;
+};
+
 //Fun fact, not padding vec3s and putting it at the end breaks everything
 
 struct Light {
@@ -73,6 +82,11 @@ layout(std140, binding = 5) buffer LightBuffer {
 
 layout(std140, binding = 6) buffer MaterialBuffer {
 	Material materials[];
+};
+
+//TODO: Acceleration structure
+layout(std140, binding = 7) buffer TriangleBuffer {
+	Triangle triangles[];
 };
 
 //Camera variables

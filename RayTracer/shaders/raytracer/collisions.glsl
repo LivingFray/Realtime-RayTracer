@@ -20,6 +20,12 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 			}
 		}
 	}
+	//Loop through each triangle
+		for(int i=0; i<triangles.length(); i++){
+		if(hasTriangleCollision(triangles[i], rayOrigin, rayDirection, minDist, maxDist)) {
+			return true;
+		}
+	}
 	return false;
 }
 
@@ -38,13 +44,17 @@ Collision getCollision(vec3 rayOrigin, vec3 rayDirection) {
 		while(getNextSphereList(dda, listStart, listEnd) && !hitSphere){
 			for(int i=listStart; i<listEnd; i++){
 				hitSphere = getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) || hitSphere;
-				hitSphere = false;																								//<<<<<<ISSUE WITH PREMATURE CUTOFF
+				//hitSphere = false;																								//<<<<<<ISSUE WITH PREMATURE CUTOFF
 			}
 		}
 	}
 	//Loop through each plane
 	for(int i=0; i<planes.length(); i++){
 		getPlaneCollision(planes[i], rayOrigin, rayDirection, c);
+	}
+	//Loop through each triangle
+	for(int i=0; i<triangles.length(); i++){
+		getTriangleCollision(triangles[i], rayOrigin, rayDirection, c);
 	}
 	return c;
 }
@@ -91,7 +101,7 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 		vec3 rayOrigin;
 		vec3 rayDirection;
 		float contr;
-		float refIndex;
+		//float refIndex;
 	};
 	struct Iteration {
 		AdditionalRay rays[2];
@@ -104,7 +114,7 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 	primaryRay.rayDirection = rayDirection;
 	primaryRay.contr = 1.0;
 	//TODO: FIX FOR RAYS ORIGINATING INSIDE AN OBJECT
-	primaryRay.refIndex = 1.0;
+	//primaryRay.refIndex = 1.0;
 	Iteration firstIter;
 	firstIter.rays[0] = primaryRay;
 	firstIter.numRays = 1;
@@ -129,8 +139,18 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 			}
 			//Get material of collided object
 			Material mat = materials[col.material];
+			float startRef = 1.0;
+			float endRef = mat.refIndex;
+			bool flipped = false;
+			//Flip normal if hitting back of surface
+			if(dot(col.norm, rayDirection) > 0) {
+				col.norm *= -1;
+				flipped = true;
+				startRef = mat.refIndex;
+				endRef = 1.0;
+			}
 			//Get the proportion of light that is reflected
-			float reflectAmount = getFresnel(ray.refIndex, mat.refIndex, ray.rayDirection, col.norm, mat.reflection);
+			float reflectAmount = getFresnel(startRef, endRef, ray.rayDirection, col.norm, mat.reflection);
 			float transmitAmount = 1.0 - reflectAmount;
 			//If object is solid apply phong lighting
 			if (mat.opaque != 0) {
@@ -139,26 +159,26 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 					addLighting(lightColour, lights[j], col, ray.rayDirection);
 				}
 				pixelColour += lightColour * transmitAmount * ray.contr;
-			} else if (transmitAmount > MIN_CONTR) {
+			} else if (ray.contr * transmitAmount > MIN_CONTR) {
 				//Apply refraction
 				AdditionalRay refractRay;
 				//Check arguments are correct way round
-				refractRay.rayDirection = refract(ray.rayDirection, col.norm, ray.refIndex / mat.refIndex);
+				refractRay.rayDirection = refract(ray.rayDirection, col.norm, startRef / endRef);
 				refractRay.rayOrigin = col.pos + refractRay.rayDirection * BIAS;
 				refractRay.contr = ray.contr * transmitAmount;
-				refractRay.refIndex = mat.refIndex;
+				//refractRay.refIndex = mat.refIndex;
 				//Push new ray onto stack
 				nextIter.rays[nextIter.numRays] = refractRay;
 				nextIter.numRays++;
 				//TODO: Apply Beer's law here
 			}
-			if (reflectAmount > MIN_CONTR) {
+			if (ray.contr * reflectAmount > MIN_CONTR) {
 				//Apply Reflection
 				AdditionalRay reflectRay;
 				reflectRay.rayDirection = reflect(ray.rayDirection, col.norm);
 				reflectRay.rayOrigin = col.pos + reflectRay.rayDirection * BIAS;
 				reflectRay.contr = ray.contr * reflectAmount;
-				reflectRay.refIndex = ray.refIndex;
+				//reflectRay.refIndex = ray.refIndex;
 				//Push new ray onto stack
 				nextIter.rays[nextIter.numRays] = reflectRay;
 				nextIter.numRays++;
