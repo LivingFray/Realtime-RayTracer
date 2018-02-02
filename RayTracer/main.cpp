@@ -464,27 +464,27 @@ int main() {
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 
-		newM.colour = glm::vec3(1.0f, 1.0f, 1.0f);
+		newM.colour = glm::vec3(0.0f, 1.0f, 1.0f);
 		newM.opaque = 1;
 		newM.refIndex = 1.5;
-		newM.reflection = 0.1f;
+		newM.reflection = 0.6f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 
 		newM.colour = glm::vec3(1.0f, 1.0f, 1.0f);
 		newM.opaque = 0;
 		newM.refIndex = 1.05;
-		newM.reflection = 0.5f;
+		newM.reflection = 0.0f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 	}
 	std::vector<Triangle> triangles;
 	{
 		struct Triangle newT;
-		newT.v1 = glm::vec3(-10.0f, 20.0f, -10.0f);
-		newT.v2 = glm::vec3(10.0f, 20.0f, -10.0f);
-		newT.v3 = glm::vec3(0.0f, 20.0f, 10.0f);
-		newT.material = 1;
+		newT.v1 = glm::vec3(-10.0f, -20.0f, -10.0f);
+		newT.v2 = glm::vec3(10.0f, -20.0f, -10.0f);
+		newT.v3 = glm::vec3(0.0f, -20.0f, 10.0f);
+		newT.material = 0;
 		triangles.push_back(newT);
 	}
 	std::vector<int> grid;

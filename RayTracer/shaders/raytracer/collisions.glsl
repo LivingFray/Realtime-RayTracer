@@ -121,12 +121,12 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 	iterations[0] = firstIter;
 	int iterExplored = 0;
 	while (numIterations > 0 && iterExplored < MAX_DEPTH) {
-		iterExplored++;
 		//Pop ray off stack
 		numIterations--;
 		Iteration it = iterations[numIterations];
 		//For each ray in current iteration, explore rays and add new rays to list
 		for(int i = 0; i < it.numRays; i++) {
+			iterExplored++;
 			AdditionalRay ray = it.rays[i];
 			Iteration nextIter;
 			nextIter.numRays = 0;

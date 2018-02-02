@@ -300,12 +300,12 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 	iterations[0] = firstIter;
 	int iterExplored = 0;
 	while (numIterations > 0 && iterExplored < MAX_DEPTH) {
-		iterExplored++;
 		//Pop ray off stack
 		numIterations--;
 		Iteration it = iterations[numIterations];
 		//For each ray in current iteration, explore rays and add new rays to list
 		for(int i = 0; i < it.numRays; i++) {
+			iterExplored++;
 			AdditionalRay ray = it.rays[i];
 			Iteration nextIter;
 			nextIter.numRays = 0;
@@ -866,7 +866,7 @@ bool getTriangleCollision(Triangle t, vec3 rayOrigin, vec3 rayDirection, inout C
 	// At this stage we can compute t to find out where the intersection point is on the line.
 	float dist = f * dot(edgeB, q);
 	// If t is positive, collided
-	if (dist > 0.0) {
+	if (dist > 0.0 && col.dist>dist) {
 		col.dist = dist;
 		col.hit = true;
 		col.pos = rayOrigin + col.dist * rayDirection;
@@ -902,5 +902,5 @@ bool hasTriangleCollision(Triangle t, vec3 rayOrigin, vec3 rayDirection, float m
 	// At this stage we can compute t to find out where the intersection point is on the line.
 	float dist = f * dot(edgeB, q);
 	// If t is positive, collided
-	return dist > 0;
+	return dist > minDist && dist < maxDist;
 } 
