@@ -4,6 +4,9 @@
 #define GROUP_SIZE 1
 layout(local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE, local_size_z = 1) in;
 
+//Debug, shows the regular grid spheres are held in
+#define DRAW_REGGRID
+
 //Structures must align to a multiple of 4 floats
 
 struct Sphere {
@@ -94,6 +97,7 @@ uniform float twiceTanFovY;
 uniform float cameraWidth;
 uniform float cameraHeight;
 uniform mat4 cameraMatrix; 
+// 
 uniform int numX;
 uniform int numY;
 uniform int numZ;
@@ -113,6 +117,9 @@ struct Collision {
 	vec3 norm;
 	bool hit;
 	int material;
+#ifdef DRAW_REGGRID
+	vec3 dbgColour;
+#endif
 };
 
 //Prevent reflected rays colliding with the object they originated from
@@ -125,6 +132,10 @@ struct Collision {
 #define MAX_DEPTH 3
 
 #define MIN_CONTR 0.005
+
+#define MAX_REFLECT 4
+
+#define MAX_REFRACT 2
 
 //Returns if the ray hits anything
 bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist);
@@ -159,6 +170,8 @@ struct DDA {
 	float maxY;
 	float maxZ;
 	bool firstSphereIt;
+	//Used to help collision code know when it can stop early
+	float distToEdge;
 };
 
 //Gets the next grid that contains a possible collision
@@ -177,6 +190,7 @@ bool hasSphereCollision(Sphere s, vec3 rayOrigin, vec3 rayDirection, float minDi
 bool getTriangleCollision(Triangle t, vec3 rayOrigin, vec3 rayDirection, inout Collision col);
 //Returns whether there exists a collision between the ray and the triangle
 bool hasTriangleCollision(Triangle t, vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist); 
+// 
 // /*DEBUG*/ => //*DEBUG*/ Toggles a debug line
 
 bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist){
@@ -210,6 +224,9 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 
 Collision getCollision(vec3 rayOrigin, vec3 rayDirection) {
 	Collision c;
+#ifdef DRAW_REGGRID
+	c.dbgColour = vec3(0.0, 0.0, 0.0);
+#endif
 	//Start with infinite distance collision
 	c.dist = 1.0 / 0.0;
 	c.hit = false;
@@ -221,9 +238,11 @@ Collision getCollision(vec3 rayOrigin, vec3 rayDirection) {
 	bool hitSphere = false;
 	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
 		while(getNextSphereList(dda, listStart, listEnd) && !hitSphere){
+#ifdef DRAW_REGGRID
+			c.dbgColour += vec3(0.1, 0.1, 0.1);
+#endif
 			for(int i=listStart; i<listEnd; i++){
-				hitSphere = getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) || hitSphere;
-				//hitSphere = false;																								//<<<<<<ISSUE WITH PREMATURE CUTOFF
+				hitSphere = (getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) && c.dist < dda.distToEdge) || hitSphere;
 			}
 		}
 	}
@@ -288,6 +307,8 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 	};
 	Iteration iterations[MAX_DEPTH];
 	int numIterations = 1;
+	int numReflect = 0;
+	int numRefract = 0;
 	AdditionalRay primaryRay;
 	primaryRay.rayOrigin = rayOrigin;
 	primaryRay.rayDirection = rayDirection;
@@ -320,11 +341,9 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 			Material mat = materials[col.material];
 			float startRef = 1.0;
 			float endRef = mat.refIndex;
-			bool flipped = false;
 			//Flip normal if hitting back of surface
 			if(dot(col.norm, rayDirection) > 0) {
 				col.norm *= -1;
-				flipped = true;
 				startRef = mat.refIndex;
 				endRef = 1.0;
 			}
@@ -337,8 +356,13 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 				for(int j=0;j<lights.length(); j++){
 					addLighting(lightColour, lights[j], col, ray.rayDirection);
 				}
+#ifdef DRAW_REGGRID
+				pixelColour += lightColour * transmitAmount * ray.contr + col.dbgColour;
+#else
 				pixelColour += lightColour * transmitAmount * ray.contr;
-			} else if (ray.contr * transmitAmount > MIN_CONTR) {
+#endif
+			} else if (ray.contr * transmitAmount > MIN_CONTR && numRefract < MAX_REFRACT) {
+				numRefract++;
 				//Apply refraction
 				AdditionalRay refractRay;
 				//Check arguments are correct way round
@@ -351,7 +375,8 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 				nextIter.numRays++;
 				//TODO: Apply Beer's law here
 			}
-			if (ray.contr * reflectAmount > MIN_CONTR) {
+			if (ray.contr * reflectAmount > MIN_CONTR && numReflect < MAX_REFLECT) {
+				numReflect++;
 				//Apply Reflection
 				AdditionalRay reflectRay;
 				reflectRay.rayDirection = reflect(ray.rayDirection, col.norm);
@@ -633,48 +658,6 @@ bool hasPlaneCollision(Plane p, vec3 rayOrigin, vec3 rayDirection, float minDist
 	}
 	return false;
 } 
-
-/*
-Store:
-First vertical cut: tMaxX
-First horizontal cut: tMaxY
-How far to move before the ray has 
-travelled a horizontal distance of one cell width: DeltaX
-How far to move before the ray has 
-travelled a vertical distance of one cell height: DeltaY
-
-list= NIL;
-do  {
-	if(tMaxX < tMaxY) {
-		if(tMaxX < tMaxZ) {
-			X= X + stepX;
-			if(X == justOutX)
-				return(NIL); 
-			tMaxX= tMaxX + tDeltaX;
-		} else  {
-			Z= Z + stepZ;
-			if(Z == justOutZ)
-				return(NIL);
-			tMaxZ= tMaxZ + tDeltaZ;
-		}
-	} else  {
-		if(tMaxY < tMaxZ) {
-			Y= Y + stepY;
-			if(Y == justOutY)
-				return(NIL);
-			tMaxY= tMaxY + tDeltaY;
-		} else  {
-			Z= Z + stepZ;
-			if(Z == justOutZ)
-				return(NIL);
-			tMaxZ= tMaxZ + tDeltaZ;
-		}
-	}
-	list= ObjectList[X][Y][Z];
-} while(list == NIL);
-
-*/
-
 bool distToAABB(vec3 rayOrigin, vec3 rayDirection, inout float dist) {
 	vec3 dirInv = vec3(1.0 / rayDirection.x, 1.0 / rayDirection.y, 1.0 / rayDirection.z);
     float tx1 = (gridMinX - rayOrigin.x)*dirInv.x;
@@ -718,7 +701,7 @@ bool initSphereListRay(vec3 rayOrigin, vec3 rayDirection, inout DDA dda, inout i
 	dda.deltaY = sizeY / rayDirection.y;
 	dda.deltaZ = sizeZ / rayDirection.z;
 	
-	//Make negative directions positive																									<<<<<FIX FOR REGULAR GRID RENDERING
+	//Make negative directions positive
 	dda.deltaX *= dda.stepX;
 	dda.deltaY *= dda.stepY;
 	dda.deltaZ *= dda.stepZ;
@@ -730,6 +713,19 @@ bool initSphereListRay(vec3 rayOrigin, vec3 rayDirection, inout DDA dda, inout i
 	dda.maxY = ((dda.gridY + max(0, dda.stepY))*sizeY + gridMinY - rayOrigin.y) / rayDirection.y;
 	dda.maxZ = ((dda.gridZ + max(0, dda.stepZ))*sizeZ + gridMinZ - rayOrigin.z) / rayDirection.z;
 	dda.firstSphereIt = true;
+	if(dda.maxX < dda.maxY) {
+		if(dda.maxX < dda.maxZ) {
+			dda.distToEdge = dda.maxX;
+		} else {
+			dda.distToEdge = dda.maxZ;
+		}
+	} else {
+		if(dda.maxY < dda.maxZ) {
+			dda.distToEdge = dda.maxY;
+		} else {
+			dda.distToEdge = dda.maxZ;
+		}
+	}
 	return true;
 }
 /*
@@ -752,11 +748,13 @@ bool getNextSphereList(inout DDA dda, inout int listStart, inout int listEnd) {
 				if(dda.gridX == numX || dda.gridX == -1)
 					return false; 
 				dda.maxX = dda.maxX + dda.deltaX;
+				dda.distToEdge += dda.deltaX;
 			} else  {
 				dda.gridZ = dda.gridZ + dda.stepZ;
 				if(dda.gridZ == numZ || dda.gridZ == -1)
 					return false;
 				dda.maxZ = dda.maxZ + dda.deltaZ;
+				dda.distToEdge += dda.deltaZ;
 			}
 		} else  {
 			if(dda.maxY < dda.maxZ) {
@@ -764,23 +762,18 @@ bool getNextSphereList(inout DDA dda, inout int listStart, inout int listEnd) {
 				if(dda.gridY == numY || dda.gridY == -1)
 					return false;
 				dda.maxY = dda.maxY + dda.deltaY;
+				dda.distToEdge += dda.deltaY;
 			} else  {
 				dda.gridZ = dda.gridZ + dda.stepZ;
 				if(dda.gridZ == numZ || dda.gridZ == -1)
 					return false;
 				dda.maxZ = dda.maxZ + dda.deltaZ;
+				dda.distToEdge += dda.deltaZ;
 			}
 		}
 	}
 	dda.firstSphereIt = false;
 	index = dda.gridX + dda.gridY * numX + dda.gridZ * numX * numY;
-	/*
-	if(index == 0) {
-		listStart = 0;
-	} else {
-		listStart = sphereGrid[index - 1];
-	}
-	*/
 	listStart = min(index, 1) * sphereGrid[index - 1];
 	listEnd = sphereGrid[index];
 	return true;

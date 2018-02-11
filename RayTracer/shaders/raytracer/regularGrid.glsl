@@ -1,45 +1,3 @@
-
-/*
-Store:
-First vertical cut: tMaxX
-First horizontal cut: tMaxY
-How far to move before the ray has 
-travelled a horizontal distance of one cell width: DeltaX
-How far to move before the ray has 
-travelled a vertical distance of one cell height: DeltaY
-
-list= NIL;
-do  {
-	if(tMaxX < tMaxY) {
-		if(tMaxX < tMaxZ) {
-			X= X + stepX;
-			if(X == justOutX)
-				return(NIL); 
-			tMaxX= tMaxX + tDeltaX;
-		} else  {
-			Z= Z + stepZ;
-			if(Z == justOutZ)
-				return(NIL);
-			tMaxZ= tMaxZ + tDeltaZ;
-		}
-	} else  {
-		if(tMaxY < tMaxZ) {
-			Y= Y + stepY;
-			if(Y == justOutY)
-				return(NIL);
-			tMaxY= tMaxY + tDeltaY;
-		} else  {
-			Z= Z + stepZ;
-			if(Z == justOutZ)
-				return(NIL);
-			tMaxZ= tMaxZ + tDeltaZ;
-		}
-	}
-	list= ObjectList[X][Y][Z];
-} while(list == NIL);
-
-*/
-
 bool distToAABB(vec3 rayOrigin, vec3 rayDirection, inout float dist) {
 	vec3 dirInv = vec3(1.0 / rayDirection.x, 1.0 / rayDirection.y, 1.0 / rayDirection.z);
     float tx1 = (gridMinX - rayOrigin.x)*dirInv.x;
@@ -83,7 +41,7 @@ bool initSphereListRay(vec3 rayOrigin, vec3 rayDirection, inout DDA dda, inout i
 	dda.deltaY = sizeY / rayDirection.y;
 	dda.deltaZ = sizeZ / rayDirection.z;
 	
-	//Make negative directions positive																									<<<<<FIX FOR REGULAR GRID RENDERING
+	//Make negative directions positive
 	dda.deltaX *= dda.stepX;
 	dda.deltaY *= dda.stepY;
 	dda.deltaZ *= dda.stepZ;
@@ -95,6 +53,19 @@ bool initSphereListRay(vec3 rayOrigin, vec3 rayDirection, inout DDA dda, inout i
 	dda.maxY = ((dda.gridY + max(0, dda.stepY))*sizeY + gridMinY - rayOrigin.y) / rayDirection.y;
 	dda.maxZ = ((dda.gridZ + max(0, dda.stepZ))*sizeZ + gridMinZ - rayOrigin.z) / rayDirection.z;
 	dda.firstSphereIt = true;
+	if(dda.maxX < dda.maxY) {
+		if(dda.maxX < dda.maxZ) {
+			dda.distToEdge = dda.maxX;
+		} else {
+			dda.distToEdge = dda.maxZ;
+		}
+	} else {
+		if(dda.maxY < dda.maxZ) {
+			dda.distToEdge = dda.maxY;
+		} else {
+			dda.distToEdge = dda.maxZ;
+		}
+	}
 	return true;
 }
 /*
@@ -117,11 +88,13 @@ bool getNextSphereList(inout DDA dda, inout int listStart, inout int listEnd) {
 				if(dda.gridX == numX || dda.gridX == -1)
 					return false; 
 				dda.maxX = dda.maxX + dda.deltaX;
+				dda.distToEdge += dda.deltaX;
 			} else  {
 				dda.gridZ = dda.gridZ + dda.stepZ;
 				if(dda.gridZ == numZ || dda.gridZ == -1)
 					return false;
 				dda.maxZ = dda.maxZ + dda.deltaZ;
+				dda.distToEdge += dda.deltaZ;
 			}
 		} else  {
 			if(dda.maxY < dda.maxZ) {
@@ -129,23 +102,18 @@ bool getNextSphereList(inout DDA dda, inout int listStart, inout int listEnd) {
 				if(dda.gridY == numY || dda.gridY == -1)
 					return false;
 				dda.maxY = dda.maxY + dda.deltaY;
+				dda.distToEdge += dda.deltaY;
 			} else  {
 				dda.gridZ = dda.gridZ + dda.stepZ;
 				if(dda.gridZ == numZ || dda.gridZ == -1)
 					return false;
 				dda.maxZ = dda.maxZ + dda.deltaZ;
+				dda.distToEdge += dda.deltaZ;
 			}
 		}
 	}
 	dda.firstSphereIt = false;
 	index = dda.gridX + dda.gridY * numX + dda.gridZ * numX * numY;
-	/*
-	if(index == 0) {
-		listStart = 0;
-	} else {
-		listStart = sphereGrid[index - 1];
-	}
-	*/
 	listStart = min(index, 1) * sphereGrid[index - 1];
 	listEnd = sphereGrid[index];
 	return true;

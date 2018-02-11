@@ -13,6 +13,8 @@ struct DDA {
 	float maxY;
 	float maxZ;
 	bool firstSphereIt;
+	//Used to help collision code know when it can stop early
+	float distToEdge;
 };
 
 //Gets the next grid that contains a possible collision

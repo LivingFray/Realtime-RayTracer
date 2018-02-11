@@ -239,7 +239,7 @@ struct Material {
 };
 
 int inline getGrid(float pos, float size, float minCoord, int numGrids) {
-	return glm::clamp(static_cast<int>(ceil((pos - minCoord) * size)), 0, numGrids - 1);
+	return static_cast<int>(floor((pos - minCoord) / size));
 }
 
 /*
@@ -274,7 +274,15 @@ void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vec
 			maxZ = s.pos.z + s.radius;
 		}
 	}
+	//Give a small amount of space around the edges for rounding errors and such
+	minX -= 0.05f;
+	maxX += 0.05f;
+	minY -= 0.05f;
+	maxY += 0.05f;
+	minZ -= 0.05f;
+	maxZ += 0.05f;
 	//Equation from http://www.dbd.puc-rio.br/depto_informatica/09_14_ivson.pdf
+	//Get volume and calculate average size that holds 1 sphere
 	float dX = maxX - minX;
 	float dY = maxY - minY;
 	float dZ = maxZ - minZ;
@@ -292,64 +300,30 @@ void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vec
 	int spherePos = 0;
 	for (Sphere s : spheres) {
 		//Calculate boundaries of sphere
-		int radGridSizeX = static_cast<int>(ceil(s.radius * sizeX)) - 1;
-		int radGridSizeY = static_cast<int>(ceil(s.radius * sizeY)) - 1;
-		int radGridSizeZ = static_cast<int>(ceil(s.radius * sizeZ)) - 1;
-		int cX = getGrid(s.pos.x, sizeX, minX, nX);
-		int cY = getGrid(s.pos.y, sizeY, minY, nY);
-		int cZ = getGrid(s.pos.z, sizeZ, minZ, nZ);
+		//*
 
-		int xMin = static_cast<int>((((s.pos.x - s.radius) - minX) / sizeX));
-		int yMin = static_cast<int>((((s.pos.y - s.radius) - minY) / sizeY));
-		int zMin = static_cast<int>((((s.pos.z - s.radius) - minZ) / sizeZ));
-		int xMax = static_cast<int>(ceil(((s.pos.x + s.radius) - minX) / sizeX));
-		int yMax = static_cast<int>(ceil(((s.pos.y + s.radius) - minY) / sizeY));
-		int zMax = static_cast<int>(ceil(((s.pos.z + s.radius) - minZ) / sizeZ));
-
-		for (int x = xMin; x < xMax; x++) {
-			for (int y = yMin; y < yMax; y++) {
-				for (int z = zMin; z < zMax; z++) {
+		int xMin = static_cast<int>(((s.pos.x - s.radius) - minX) / sizeX);
+		int yMin = static_cast<int>(((s.pos.y - s.radius) - minY) / sizeY);
+		int zMin = static_cast<int>(((s.pos.z - s.radius) - minZ) / sizeZ);
+		int xMax = static_cast<int>(((s.pos.x + s.radius) - minX) / sizeX);
+		int yMax = static_cast<int>(((s.pos.y + s.radius) - minY) / sizeY);
+		int zMax = static_cast<int>(((s.pos.z + s.radius) - minZ) / sizeZ);
+		//*/
+		/*
+		int xMin = getGrid(s.pos.x - s.radius, sizeX, minX, nX);
+		int xMax = getGrid(s.pos.x + s.radius, sizeX, minX, nX);
+		int yMin = getGrid(s.pos.y - s.radius, sizeY, minY, nY);
+		int yMax = getGrid(s.pos.y + s.radius, sizeY, minY, nY);
+		int zMin = getGrid(s.pos.z - s.radius, sizeZ, minZ, nZ);
+		int zMax = getGrid(s.pos.z + s.radius, sizeZ, minZ, nZ);
+		*/
+		for (int x = xMin; x <= xMax; x++) {
+			for (int y = yMin; y <= yMax; y++) {
+				for (int z = zMin; z <= zMax; z++) {
 					gridSphereList[x + nX * y + nX * nY * z].push_back(spherePos);
 				}
 			}
 		}
-		//for (int x = cX - radGridSize; x < cX + radGridSize; x++) {
-		/*for (int x = 0; x < nX; x++) {
-			float gXMin = x * sizeX + minX;
-			float gXMax = (x + 1) * sizeX + minX;
-			//Sphere is too far away to possibly intersect
-			if (xMax < gXMin || xMin > gXMax) {
-				continue;
-			}
-			float closestX = glm::clamp(s.pos.x, gXMin, gXMax);
-			//for (int y = cY - radGridSize; y < cY + radGridSize; y++) {
-			for (int y = 0; y < nY; y++) {
-				float gYMin = y * sizeY + minY;
-				float gYMax = (y + 1) * sizeY + minY;
-				//Sphere is too far away to possibly intersect
-				if (yMax < gYMin || yMin > gYMax) {
-					continue;
-				}
-				float closestY = glm::clamp(s.pos.y, gYMin, gYMax);
-				//for (int z = cZ - radGridSize; z < cZ + radGridSize; z++) {
-				for (int z = 0; z < nZ; z++) {
-					float gZMin = z * sizeZ + minZ;
-					float gZMax = (z + 1) * sizeZ + minZ;
-					//Sphere is too far away to possibly intersect
-					if (zMax < gZMin || zMin > gZMax) {
-						continue;
-					}
-					float closestZ = glm::clamp(s.pos.z, gZMin, gZMax);
-					//Test for overlap
-					float distX = closestX - s.pos.x;
-					float distY = closestY - s.pos.y;
-					float distZ = closestZ - s.pos.z;
-					if(distX * distX + distY * distY + distZ * distZ <= s.radius * s.radius) {
-						gridSphereList[x + nX * y + nX * nY * z].push_back(spherePos);
-					}
-				}
-			}
-		}*/
 		spherePos++;
 	}
 	grid.clear();
@@ -365,9 +339,6 @@ void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vec
 		for (int index : spheres) {
 			lists.push_back(index);
 		}
-		//for (int i = 0; i < 4; i++) {
-		//	lists.push_back(i);
-		//}
 	}
 	glUseProgram(id);
 	glUniform1i(glGetUniformLocation(id, "numX"), nX);
@@ -423,7 +394,7 @@ int main() {
 		struct Sphere newS;
 		newS.pos = glm::vec3(0.0f, 4.0f, 0.0f);
 		newS.radius = 1.5f;
-		newS.material = 2;
+		newS.material = 0;
 		spheres.push_back(newS);
 	}
 	std::vector<Plane> planes;
@@ -464,10 +435,10 @@ int main() {
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 
-		newM.colour = glm::vec3(0.0f, 1.0f, 1.0f);
+		newM.colour = glm::vec3(1.0f, 1.0f, 1.0f);
 		newM.opaque = 1;
 		newM.refIndex = 1.5;
-		newM.reflection = 0.6f;
+		newM.reflection = 0.0f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 

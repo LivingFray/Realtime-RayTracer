@@ -17,6 +17,9 @@ struct Collision {
 	vec3 norm;
 	bool hit;
 	int material;
+#ifdef DRAW_REGGRID
+	vec3 dbgColour;
+#endif
 };
 
 //Prevent reflected rays colliding with the object they originated from
@@ -29,6 +32,10 @@ struct Collision {
 #define MAX_DEPTH 3
 
 #define MIN_CONTR 0.005
+
+#define MAX_REFLECT 4
+
+#define MAX_REFRACT 2
 
 //Returns if the ray hits anything
 bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDist);

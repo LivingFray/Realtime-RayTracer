@@ -31,6 +31,9 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 
 Collision getCollision(vec3 rayOrigin, vec3 rayDirection) {
 	Collision c;
+#ifdef DRAW_REGGRID
+	c.dbgColour = vec3(0.0, 0.0, 0.0);
+#endif
 	//Start with infinite distance collision
 	c.dist = 1.0 / 0.0;
 	c.hit = false;
@@ -42,9 +45,11 @@ Collision getCollision(vec3 rayOrigin, vec3 rayDirection) {
 	bool hitSphere = false;
 	if(initSphereListRay(rayOrigin, rayDirection, dda, listStart, listEnd)){
 		while(getNextSphereList(dda, listStart, listEnd) && !hitSphere){
+#ifdef DRAW_REGGRID
+			c.dbgColour += vec3(0.1, 0.1, 0.1);
+#endif
 			for(int i=listStart; i<listEnd; i++){
-				hitSphere = getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) || hitSphere;
-				//hitSphere = false;																								//<<<<<<ISSUE WITH PREMATURE CUTOFF
+				hitSphere = (getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) && c.dist < dda.distToEdge) || hitSphere;
 			}
 		}
 	}
@@ -109,6 +114,8 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 	};
 	Iteration iterations[MAX_DEPTH];
 	int numIterations = 1;
+	int numReflect = 0;
+	int numRefract = 0;
 	AdditionalRay primaryRay;
 	primaryRay.rayOrigin = rayOrigin;
 	primaryRay.rayDirection = rayDirection;
@@ -141,11 +148,9 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 			Material mat = materials[col.material];
 			float startRef = 1.0;
 			float endRef = mat.refIndex;
-			bool flipped = false;
 			//Flip normal if hitting back of surface
 			if(dot(col.norm, rayDirection) > 0) {
 				col.norm *= -1;
-				flipped = true;
 				startRef = mat.refIndex;
 				endRef = 1.0;
 			}
@@ -158,8 +163,13 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 				for(int j=0;j<lights.length(); j++){
 					addLighting(lightColour, lights[j], col, ray.rayDirection);
 				}
+#ifdef DRAW_REGGRID
+				pixelColour += lightColour * transmitAmount * ray.contr + col.dbgColour;
+#else
 				pixelColour += lightColour * transmitAmount * ray.contr;
-			} else if (ray.contr * transmitAmount > MIN_CONTR) {
+#endif
+			} else if (ray.contr * transmitAmount > MIN_CONTR && numRefract < MAX_REFRACT) {
+				numRefract++;
 				//Apply refraction
 				AdditionalRay refractRay;
 				//Check arguments are correct way round
@@ -172,7 +182,8 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 				nextIter.numRays++;
 				//TODO: Apply Beer's law here
 			}
-			if (ray.contr * reflectAmount > MIN_CONTR) {
+			if (ray.contr * reflectAmount > MIN_CONTR && numReflect < MAX_REFLECT) {
+				numReflect++;
 				//Apply Reflection
 				AdditionalRay reflectRay;
 				reflectRay.rayDirection = reflect(ray.rayDirection, col.norm);
