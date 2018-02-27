@@ -64,42 +64,6 @@ Collision getCollision(vec3 rayOrigin, vec3 rayDirection) {
 	return c;
 }
 
-vec3 getPixelColourReflect(vec3 rayOrigin, vec3 rayDirection) {
-	vec3 pixelColour = vec3(0.0, 0.0, 0.0);
-	float amount = 1.0;
-	for(int i = 0; i < MAX_DEPTH; i++){
-		Collision col = getCollision(rayOrigin, rayDirection);
-		if(!col.hit) {
-			//Sky
-			pixelColour += SKY_COLOR * amount;
-			break;
-		}
-		vec3 lightColour = vec3(0.0, 0.0, 0.0);
-		Material m = materials[col.material];
-		if(m.opaque != 0) {
-			//Loop through each light to calculate lighting
-			//TODO: Skip if too reflective
-			for(int j=0;j<lights.length(); j++){
-				addLighting(lightColour, lights[j], col, rayDirection);
-			}
-		} else {
-			//Refraction
-			
-		}
-		//TODO: Inside -> Outside fresnel
-		float r = getFresnel(1.0, m.refIndex, rayDirection, col.norm, m.reflection);
-		pixelColour += lightColour * (1.0 - r) * amount;
-		amount *= r; //Reduce contribution for next ray
-		if (amount < MIN_CONTR) {
-			break; //So little contribution not worth persuing
-		}
-		rayDirection = reflect(rayDirection, col.norm);
-		//Prevent self intersection
-		rayOrigin = col.pos + rayDirection * BIAS;
-	}
-	return pixelColour;
-}
-
 vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 	vec3 pixelColour = vec3(0.0, 0.0, 0.0);
 	struct AdditionalRay {
@@ -120,8 +84,6 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 	primaryRay.rayOrigin = rayOrigin;
 	primaryRay.rayDirection = rayDirection;
 	primaryRay.contr = 1.0;
-	//TODO: FIX FOR RAYS ORIGINATING INSIDE AN OBJECT
-	//primaryRay.refIndex = 1.0;
 	Iteration firstIter;
 	firstIter.rays[0] = primaryRay;
 	firstIter.numRays = 1;
@@ -169,6 +131,9 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 				pixelColour += lightColour * transmitAmount * ray.contr;
 #endif
 			} else if (ray.contr * transmitAmount > MIN_CONTR && numRefract < MAX_REFRACT) {
+#ifdef DEBUG_REFRACT
+				pixelColour += vec3(0.1, 0.0, 0.0);
+#endif
 				numRefract++;
 				//Apply refraction
 				AdditionalRay refractRay;
@@ -183,6 +148,9 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 				//TODO: Apply Beer's law here
 			}
 			if (ray.contr * reflectAmount > MIN_CONTR && numReflect < MAX_REFLECT) {
+#ifdef DEBUG_REFLECT
+				pixelColour += vec3(0.0, 0.0, 0.1);
+#endif
 				numReflect++;
 				//Apply Reflection
 				AdditionalRay reflectRay;
@@ -223,104 +191,3 @@ float getFresnel(float currentInd, float newInd, vec3 normal, vec3 incident, flo
 	
 	return reflectivity + (1.0 - reflectivity) * (r0 + (1.0 - r0) * x * x * x * x * x);
 }
-
-/*
-Reflections:
-Cast primary ray:
-If(NumReflections < MAX_DEPTH or Amount_Contributed > MIN_CONTR):
-	colour += GetPixelColour(Reflection_Ray)
-
-getPixelColour(Ray):
-	for each object:
-		Collision = GetCollision(Ray)
-	for each light:
-		PixelColour += ApplyLighting(Collision)
-	return PixelColour
-	
-getPixelColourReflect(Ray):
-	for each object:
-		Collision = GetCollision(Ray)
-	for each light:
-		PixelColour += ApplyLighting(Collision)
-	R = CalculateReflection(Collision)
-	if(ReflectionContributes(R)):
-		PixelColour += getPixelColourReflect(R) * ReflectAmount
-	return PixelColour
-
-getPixelColourReflectIter(Ray):
-	R = Ray
-	do:
-		PixelColour += getPixelColour(Ray) * ReflectAmount
-		R = CalculateReflection(Collision)
-	while(ReflectionContributes(R))
-	return PixelColour
-	
-Reflection And Refraction:
-
-getPixelColourReflectAndRefract(Ray):
-	struct AdditionalRay {
-		Ray ray;
-		float contribution;
-		float refIndex;
-		//Beer's law stuff here
-	}
-	int amount;
-	int numRays = 0;
-	Stack<AdditionalRay> rays;
-	rays.push(AdditionalRay(Ray, 1.0, 1.0));
-	while(!rays.empty && numRays < MAX_DEPTH):
-		Ray r = rays.pop();
-		Collision c = getCollision(r);
-		Material m = c.materal;
-		float reflectAmount = getFresnel();
-		if(m.opaque):
-			PixelColour += applyLighting(m);
-		else if (1.0 - reflectAmount > MIN_CONTR):
-			ratio = r.refIndex / m.refIndex;
-			refractRay = AdditionalRay(refract(Ray, c.normal, ratio), r.contribution * (1.0 - reflectAmount), m.refIndex);
-			rays.push(refractRay);
-		if(reflectAmount > MIN_CONTR):
-			reflectRay = AdditionalRay(reflect(Ray, c.normal), r.contribution * reflectAmount, r.refIndex);
-			rays.push(reflectRay);
-*/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

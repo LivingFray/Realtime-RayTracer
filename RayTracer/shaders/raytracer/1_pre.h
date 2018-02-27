@@ -5,7 +5,9 @@
 layout(local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE, local_size_z = 1) in;
 
 //Debug, shows the regular grid spheres are held in
-#define DRAW_REGGRID
+//#define DRAW_REGGRID
+
+//#define DEBUG_RELFECT
 
 //Structures must align to a multiple of 4 floats
 

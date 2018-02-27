@@ -10,15 +10,9 @@
 #pragma comment(lib, "glew32.lib")
 
 #include "Shader.h"
+#include "Simulation.h"
+#include "Structures.h"
 
-#define GROUP_SIZE 1
-
-#define WIDTH 1280
-#define HEIGHT 720
-#define CAMERA_WIDTH 16.0f
-#define CAMERA_HEIGHT 9.0f
-
-#define FOV 90
 
 //Use dedicated graphics card
 extern "C"
@@ -30,6 +24,8 @@ extern "C"
 GLFWwindow* window = nullptr;
 
 int MAX_WORK_GROUPS[3];
+
+std::vector<std::string> TEMPARGS = {"TEST", "TEST2 3"};
 
 void sharedInit() {
 	if (!window) {
@@ -122,244 +118,6 @@ void generateQuad(GLuint *vertexArray, GLuint *vertexBuffer, GLuint *textureBuff
 	glBindVertexArray(0);
 }
 
-double horizontalAngle = 3.1415926, verticalAngle = 0.0;
-bool firstMove = true;
-glm::vec3 camPos;
-#define MOUSE_SPEED 0.005
-#define CAMERA_SPEED 0.1f
-glm::mat4 camMat(1.0f);
-
-
-void updateCamera(double dt) {
-	double mx, my;
-	int w, h;
-	glfwGetCursorPos(window, &mx, &my);
-	glfwGetWindowSize(window, &w, &h);
-	mx -= static_cast<double>(w) / 2.0;
-	my -= static_cast<double>(h) / 2.0;
-	glfwSetCursorPos(window,
-		static_cast<double>(w) / 2.0,
-		static_cast<double>(h) / 2.0
-	);
-	if (firstMove) {
-		mx = 0.0;
-		my = 0.0;
-		firstMove = false;
-	}
-
-	horizontalAngle += mx * MOUSE_SPEED;
-	verticalAngle += my * MOUSE_SPEED;
-
-	if (horizontalAngle > glm::two_pi<double>()) {
-		horizontalAngle -= glm::two_pi<double>();
-	}
-	if (horizontalAngle < 0.0) {
-		horizontalAngle += glm::two_pi<double>();
-	}
-	if (verticalAngle > glm::half_pi<double>()) {
-		verticalAngle = glm::half_pi<double>();
-	}
-	if (verticalAngle < -glm::half_pi<double>()) {
-		verticalAngle = -glm::half_pi<double>();
-	}
-
-	glm::vec3 direction(
-		cos(verticalAngle) * sin(horizontalAngle),
-		sin(verticalAngle),
-		cos(verticalAngle) * cos(horizontalAngle)
-	);
-
-	glm::vec3 right = glm::vec3(
-		sin(horizontalAngle - 3.14f / 2.0f),
-		0,
-		cos(horizontalAngle - 3.14f / 2.0f)
-	);
-
-	glm::vec3 up = glm::cross(right, direction);
-
-	if (glfwGetKey(window, GLFW_KEY_I)) {
-		camPos -= direction * CAMERA_SPEED;
-	}
-	if (glfwGetKey(window, GLFW_KEY_K)) {
-		camPos += direction * CAMERA_SPEED;
-	}
-	if (glfwGetKey(window, GLFW_KEY_J)) {
-		camPos -= right * CAMERA_SPEED;
-	}
-	if (glfwGetKey(window, GLFW_KEY_L)) {
-		camPos += right * CAMERA_SPEED;
-	}
-	//Because of how I apply the view matrix it must be inverted
-	camMat = glm::inverse(glm::lookAt(camPos, camPos + direction, up));
-}
-
-//Due to the wonders of byte alignment pad everything to be 4 floats
-struct Sphere {
-	glm::vec3 pos;
-	float radius;
-	int material;
-	float paddingA, paddingB, paddingC;
-};
-
-struct Plane {
-	glm::vec3 pos;
-	float paddingA;
-	glm::vec3 norm;
-	int material;
-};
-
-struct Triangle {
-	glm::vec3 v1;
-	float paddingA;
-	glm::vec3 v2;
-	float paddingB;
-	glm::vec3 v3;
-	int material;
-};
-
-struct Light {
-	glm::vec3 pos;
-	float isDirectional;
-	glm::vec3 colour;
-	float radius;
-	float constant;
-	float linear;
-	float quadratic;
-	//Pre calc maximum distance light is visible from
-	float maxDist;
-};
-
-struct Material {
-	glm::vec3 colour;
-	float shininess;
-	float reflection;
-	float refIndex;
-	int opaque;
-	float paddingA;
-};
-
-int inline getGrid(float pos, float size, float minCoord, int numGrids) {
-	return static_cast<int>(floor((pos - minCoord) / size));
-}
-
-/*
-In order to store a regular grid on a GPU using contiguous memory, grid points
-to the first index of a list of vertices. Relevant primitves are determined by
-accessing the primitives list from index currentGrid.value to (currentGrid+1).value
-
-*/
-#define DENSITY 1.0f
-void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vector<int>& lists, GLuint id) {
-	//Determine bounding box for grid
-	float minX, minY, minZ, maxX, maxY, maxZ;
-	minX = minY = minZ = INFINITY;
-	maxX = maxY = maxZ = -INFINITY;
-	for (Sphere s : spheres) {
-		if (s.pos.x - s.radius < minX) {
-			minX = s.pos.x - s.radius;
-		}
-		if (s.pos.x + s.radius > maxX) {
-			maxX = s.pos.x + s.radius;
-		}
-		if (s.pos.y - s.radius < minY) {
-			minY = s.pos.y - s.radius;
-		}
-		if (s.pos.y + s.radius > maxY) {
-			maxY = s.pos.y + s.radius;
-		}
-		if (s.pos.z - s.radius < minZ) {
-			minZ = s.pos.z - s.radius;
-		}
-		if (s.pos.z + s.radius > maxZ) {
-			maxZ = s.pos.z + s.radius;
-		}
-	}
-	//Give a small amount of space around the edges for rounding errors and such
-	minX -= 0.05f;
-	maxX += 0.05f;
-	minY -= 0.05f;
-	maxY += 0.05f;
-	minZ -= 0.05f;
-	maxZ += 0.05f;
-	//Equation from http://www.dbd.puc-rio.br/depto_informatica/09_14_ivson.pdf
-	//Get volume and calculate average size that holds 1 sphere
-	float dX = maxX - minX;
-	float dY = maxY - minY;
-	float dZ = maxZ - minZ;
-	float size = pow((DENSITY * spheres.size()) / (dX * dY * dZ), 1 / 3.0f);
-	int nX = static_cast<int>(ceil(dX * size));
-	int nY = static_cast<int>(ceil(dY * size));
-	int nZ = static_cast<int>(ceil(dZ * size));
-	float sizeX = dX / static_cast<float>(nX);
-	float sizeY = dY / static_cast<float>(nY);
-	float sizeZ = dZ / static_cast<float>(nZ);
-
-	std::vector<std::vector<int>> gridSphereList;
-	gridSphereList.resize(nX * nY * nZ);
-	//For each sphere, test intersection with subsection of grid
-	int spherePos = 0;
-	for (Sphere s : spheres) {
-		//Calculate boundaries of sphere
-		//*
-
-		int xMin = static_cast<int>(((s.pos.x - s.radius) - minX) / sizeX);
-		int yMin = static_cast<int>(((s.pos.y - s.radius) - minY) / sizeY);
-		int zMin = static_cast<int>(((s.pos.z - s.radius) - minZ) / sizeZ);
-		int xMax = static_cast<int>(((s.pos.x + s.radius) - minX) / sizeX);
-		int yMax = static_cast<int>(((s.pos.y + s.radius) - minY) / sizeY);
-		int zMax = static_cast<int>(((s.pos.z + s.radius) - minZ) / sizeZ);
-		//*/
-		/*
-		int xMin = getGrid(s.pos.x - s.radius, sizeX, minX, nX);
-		int xMax = getGrid(s.pos.x + s.radius, sizeX, minX, nX);
-		int yMin = getGrid(s.pos.y - s.radius, sizeY, minY, nY);
-		int yMax = getGrid(s.pos.y + s.radius, sizeY, minY, nY);
-		int zMin = getGrid(s.pos.z - s.radius, sizeZ, minZ, nZ);
-		int zMax = getGrid(s.pos.z + s.radius, sizeZ, minZ, nZ);
-		*/
-		for (int x = xMin; x <= xMax; x++) {
-			for (int y = yMin; y <= yMax; y++) {
-				for (int z = zMin; z <= zMax; z++) {
-					gridSphereList[x + nX * y + nX * nY * z].push_back(spherePos);
-				}
-			}
-		}
-		spherePos++;
-	}
-	grid.clear();
-	lists.clear();
-	//Take list of lists of grids and convert to GPU friendly format
-	int currentIndex = 0;
-	for (std::vector<int> spheres : gridSphereList) {
-		//Calculate end index
-		currentIndex += spheres.size();
-		//Store end index
-		grid.push_back(currentIndex);
-		//For each sphere in the list, add to global sphere list
-		for (int index : spheres) {
-			lists.push_back(index);
-		}
-	}
-	glUseProgram(id);
-	glUniform1i(glGetUniformLocation(id, "numX"), nX);
-	glUniform1i(glGetUniformLocation(id, "numY"), nY);
-	glUniform1i(glGetUniformLocation(id, "numZ"), nZ);
-	glUniform1f(glGetUniformLocation(id, "sizeX"), sizeX);
-	glUniform1f(glGetUniformLocation(id, "sizeY"), sizeY);
-	glUniform1f(glGetUniformLocation(id, "sizeZ"), sizeZ);
-	glUniform1f(glGetUniformLocation(id, "gridMinX"), minX);
-	glUniform1f(glGetUniformLocation(id, "gridMinY"), minY);
-	glUniform1f(glGetUniformLocation(id, "gridMinZ"), minZ);
-	glUniform1f(glGetUniformLocation(id, "gridMaxX"), maxX);
-	glUniform1f(glGetUniformLocation(id, "gridMaxY"), maxY);
-	glUniform1f(glGetUniformLocation(id, "gridMaxZ"), maxZ);
-	glUseProgram(0);
-}
-
-float randF(float min, float max) {
-	float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
-	return r * (max - min) + min;
-}
 
 int main() {
 	//Initialise OpenGL
@@ -371,150 +129,26 @@ int main() {
 	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &MAX_WORK_GROUPS[2]);
 	std::cout << MAX_WORK_GROUPS[0] << ", " << MAX_WORK_GROUPS[1] << ", " << MAX_WORK_GROUPS[2] << " Work Groups available\n";
 
-	//Create compute shader
-	Shader compute("shaders/comp.glsl");
+	Simulation sim;
+	//Set arguments for this simulation
+	/* Valid options:
+	 * DRAW_REGGRID - Draws the regular grid containing spheres
+	 * DRAW_REFLECT - Draws reflections in red(?)
+	 * DRAW_REFRACT - Draws refractions in green(?) (Check this is separate)
+	 * NUM_SHADOW_RAYS [n] - Number of rays used to check for shadows
+	 * MIN_CONTR [f] - How much a ray must contribute to the pixel colour to be explored
+	 * MAX_RELFECT [n] - Maximum number of relfections calculated per pixel
+	 * MAX_REFRACT [n] - Maximum number of refractions calculated per pixel
+	 * MAX_DEPTH [n] - Maximum number of rays a single point can cast
+	 * To be implemented:
+	 * DRAW_LIGHTS - Draws shading from light sources (not shadows)
+	 * EARLY_GRID_EXIT - Stops traversal of grid after a collision is found
+	 * USE_GRID - Uses a regular grid to traverse sphere collisions
+	 */
+	sim.args = {
 
-	//Create test input
-	std::vector<Sphere> spheres;
-	int numSpheres = 2;
-	float minX = -5.0f;
-	float minY = 0.0f;
-	float minZ = -5.0f;
-	float maxX = 5.0f;
-	float maxY = 10.0f;
-	float maxZ = 5.0f;
-	for (int i = 0; i < numSpheres; i++) {
-		struct Sphere newS;
-		newS.pos = glm::vec3(randF(minX, maxX), randF(minY, maxY), randF(minZ, maxZ));
-		newS.radius = 0.75f;
-		newS.material = 0;
-		spheres.push_back(newS);
-	}
-	{
-		struct Sphere newS;
-		newS.pos = glm::vec3(0.0f, 4.0f, 0.0f);
-		newS.radius = 1.5f;
-		newS.material = 0;
-		spheres.push_back(newS);
-	}
-	std::vector<Plane> planes;
-	{
-		struct Plane newP;
-		newP.pos = glm::vec3(0.0f, 0.0f, 0.0f);
-		newP.norm = glm::vec3(0.0f, 1.0f, 0.0f);
-		newP.material = 1;
-		planes.push_back(newP);
-	}
-	std::vector<Light> lights;
-	/*{
-		struct Light newL;
-		newL.pos = glm::vec3(0.0f, 4.0f, 0.0f);
-		newL.colour = glm::vec3(1.0f, 1.0f, 1.0f);
-		newL.constant = 1.0f;
-		newL.linear = 0.22f;
-		newL.quadratic = 0.2f;
-		newL.isDirectional = 0.0f;
-		newL.radius = 0.01f;
-		newL.maxDist = 20.0f;
-		lights.push_back(newL);
-	}*/
-	{
-		struct Light newL;
-		newL.pos = glm::vec3(0.0f, -1.0f, 0.0f);
-		newL.colour = glm::vec3(0.3f, 0.3f, 0.3f);
-		newL.isDirectional = 1.0f;
-		lights.push_back(newL);
-	}
-	std::vector<Material> materials;
-	{
-		struct Material newM;
-		newM.colour = glm::vec3(0.2f, 0.7f, 0.1f);
-		newM.opaque = 1;
-		newM.refIndex = 1.5;
-		newM.reflection = 0.0f;
-		newM.shininess = 50.0f;
-		materials.push_back(newM);
-
-		newM.colour = glm::vec3(1.0f, 1.0f, 1.0f);
-		newM.opaque = 1;
-		newM.refIndex = 1.5;
-		newM.reflection = 0.0f;
-		newM.shininess = 50.0f;
-		materials.push_back(newM);
-
-		newM.colour = glm::vec3(1.0f, 1.0f, 1.0f);
-		newM.opaque = 0;
-		newM.refIndex = 1.05;
-		newM.reflection = 0.0f;
-		newM.shininess = 50.0f;
-		materials.push_back(newM);
-	}
-	std::vector<Triangle> triangles;
-	{
-		struct Triangle newT;
-		newT.v1 = glm::vec3(-10.0f, -20.0f, -10.0f);
-		newT.v2 = glm::vec3(10.0f, -20.0f, -10.0f);
-		newT.v3 = glm::vec3(0.0f, -20.0f, 10.0f);
-		newT.material = 0;
-		triangles.push_back(newT);
-	}
-	std::vector<int> grid;
-	std::vector<int> list;
-	generateGrid(spheres, grid, list, compute.getProgram());
-	std::cout << "Generated grid (" << grid.size() << " nodes)" << std::endl;
-
-	//Bind test input
-	GLuint sphereSSBO;
-	glGenBuffers(1, &sphereSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(Sphere), &spheres[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, sphereSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-	GLuint gridSSBO;
-	glGenBuffers(1, &gridSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, grid.size() * sizeof(int), &grid[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gridSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-	GLuint listSSBO;
-	glGenBuffers(1, &listSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, listSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, list.size() * sizeof(int), &list[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, listSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-	GLuint planeSSBO;
-	glGenBuffers(1, &planeSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, planeSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, planes.size() * sizeof(Plane), &planes[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, planeSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-	GLuint lightSSBO;
-	glGenBuffers(1, &lightSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, lights.size() * sizeof(Light), &lights[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, lightSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-	GLuint materialSSBO;
-	glGenBuffers(1, &materialSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, materialSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, materials.size() * sizeof(Material), &materials[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, materialSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-	GLuint triangleSSBO;
-	glGenBuffers(1, &triangleSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, triangleSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, triangles.size() * sizeof(Triangle), &triangles[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, triangleSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-
-	//Set camera properties
-	camPos = glm::vec3(2.0f, 4.0f, 2.0f);
-	glUseProgram(compute.getProgram());
-	glUniform1f(glGetUniformLocation(compute.getProgram(), "twiceTanFovY"), tanf(3.1415926535f * FOV / 360.0f));
-	glUniform1f(glGetUniformLocation(compute.getProgram(), "cameraWidth"), CAMERA_WIDTH);
-	glUniform1f(glGetUniformLocation(compute.getProgram(), "cameraHeight"), CAMERA_HEIGHT);
-	glUniformMatrix4fv(glGetUniformLocation(compute.getProgram(), "cameraMatrix"), 1, GL_FALSE, &camMat[0][0]);
-	glUseProgram(0);
+	};
+	sim.init();
 
 	//Set texture output
 	GLuint tex;
@@ -524,9 +158,6 @@ int main() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, WIDTH, HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 	glBindImageTexture(0, tex, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-	glUseProgram(compute.getProgram());
-	glUniform1i(glGetUniformLocation(compute.getProgram(), "imgOut"), 0);
-	glUseProgram(0);
 
 	//Create Quad output
 	GLuint vertexArray, vertexBuffer, textureBuffer;
@@ -566,15 +197,6 @@ int main() {
 		if (dt > maxTime) {
 			maxTime = dt;
 		}
-		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-			glUseProgram(compute.getProgram());
-			glUniform1i(glGetUniformLocation(compute.getProgram(), "debug"), 1);
-			glUseProgram(0);
-		} else {
-			glUseProgram(compute.getProgram());
-			glUniform1i(glGetUniformLocation(compute.getProgram(), "debug"), 0);
-			glUseProgram(0);
-		}
 		//Print Frames per second
 		frames++;
 		timeSincePrinted += dt;
@@ -591,17 +213,9 @@ int main() {
 		//Poll events
 		glfwPollEvents();
 
-		//Camera
-		updateCamera(dt);
+		//Tell current simulation to draw a frame
+		sim.run(dt);
 
-		//Execute compute shader
-		glUseProgram(compute.getProgram());
-		glUniformMatrix4fv(glGetUniformLocation(compute.getProgram(), "cameraMatrix"), 1, GL_FALSE, &camMat[0][0]);
-		//Ensure data is updated (use all barrier bits because I can't be bothered to check which exact ones I need)
-		glMemoryBarrier(GL_ALL_BARRIER_BITS);
-		glDispatchCompute(WIDTH, HEIGHT, 1);
-		//Wait for image to be fully generated
-		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 		//Render result to screen
 		glUseProgram(quad.getProgram());
 		glBindVertexArray(vertexArray);
