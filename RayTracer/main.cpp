@@ -5,6 +5,9 @@
 #include <glm\gtc\matrix_transform.hpp>
 #include <vector>
 #include <stdlib.h>
+#include <fstream>
+#include <memory>
+#include <queue>
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glfw3.lib")
 #pragma comment(lib, "glew32.lib")
@@ -24,8 +27,6 @@ extern "C"
 GLFWwindow* window = nullptr;
 
 int MAX_WORK_GROUPS[3];
-
-std::vector<std::string> TEMPARGS = {"TEST", "TEST2 3"};
 
 void sharedInit() {
 	if (!window) {
@@ -118,6 +119,7 @@ void generateQuad(GLuint *vertexArray, GLuint *vertexBuffer, GLuint *textureBuff
 	glBindVertexArray(0);
 }
 
+#define SAVE_TO_FILE
 
 int main() {
 	//Initialise OpenGL
@@ -129,9 +131,8 @@ int main() {
 	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &MAX_WORK_GROUPS[2]);
 	std::cout << MAX_WORK_GROUPS[0] << ", " << MAX_WORK_GROUPS[1] << ", " << MAX_WORK_GROUPS[2] << " Work Groups available\n";
 
-	Simulation sim;
-	//Set arguments for this simulation
-	/* Valid options:
+	//Simulation information
+	/* Simulation arguments:
 	 * DRAW_REGGRID - Draws the regular grid containing spheres
 	 * DRAW_REFLECT - Draws reflections in red(?)
 	 * DRAW_REFRACT - Draws refractions in green(?) (Check this is separate)
@@ -140,15 +141,23 @@ int main() {
 	 * MAX_RELFECT [n] - Maximum number of relfections calculated per pixel
 	 * MAX_REFRACT [n] - Maximum number of refractions calculated per pixel
 	 * MAX_DEPTH [n] - Maximum number of rays a single point can cast
+	 * DONT_DRAW_LIGHTS - Draws shading from light sources (not shadows)
 	 * To be implemented:
-	 * DRAW_LIGHTS - Draws shading from light sources (not shadows)
 	 * EARLY_GRID_EXIT - Stops traversal of grid after a collision is found
 	 * USE_GRID - Uses a regular grid to traverse sphere collisions
 	 */
-	sim.args = {
-
-	};
-	sim.init();
+	std::queue<std::shared_ptr<Simulation>> sims;
+	//Add simulations to run here
+	for(int i = 1; i <= 10; i++) {
+		std::shared_ptr<Simulation> s(new Simulation());
+		s->DENSITY = i * 5.0;
+		s->args = {
+			"DRAW_REGGRID"
+		};
+		s->autoCamera = true;
+		s->csv = std::to_string(s->DENSITY);
+		sims.push(s);
+	}
 
 	//Set texture output
 	GLuint tex;
@@ -177,7 +186,11 @@ int main() {
 	double timeSincePrinted = 0;
 	double minTime = INFINITY;
 	double maxTime = 0;
-#define FRAME_EVERY 10.0
+#ifdef SAVE_TO_FILE
+	std::ofstream file;
+	file.open("out.csv");
+#endif
+#define RECORD_LENGTH 30.0
 
 	//Disable VSYNC
 	glfwSwapInterval(0);
@@ -185,43 +198,65 @@ int main() {
 	//Hide cursor
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 
+	bool initNeeded = true;
 	//Main render loop
-	while (!glfwWindowShouldClose(window) && !glfwGetKey(window, GLFW_KEY_ESCAPE)) {
+	while (!glfwWindowShouldClose(window) && !glfwGetKey(window, GLFW_KEY_ESCAPE) && !sims.empty()) {
 		//Calculate time elapsed
 		time = glfwGetTime();
 		dt = time - lastTime;
 		lastTime = time;
-		if (dt < minTime) {
-			minTime = dt;
-		}
-		if (dt > maxTime) {
-			maxTime = dt;
-		}
-		//Print Frames per second
-		frames++;
-		timeSincePrinted += dt;
-		if (timeSincePrinted > FRAME_EVERY) {
-			float avfps = static_cast<float>(frames) / FRAME_EVERY;
-			float avms = FRAME_EVERY / static_cast<float>(frames);
-			std::cout << "Minimum: " << minTime << "ms, Average: " << avms << "ms (" << avfps << "), Maximum: " << maxTime << "ms" << std::endl;
+		if (initNeeded && !sims.empty()) {
+			sims.front()->init();
 			frames = 0;
 			minTime = INFINITY;
-			maxTime = 0;
-			timeSincePrinted -= FRAME_EVERY;
+			maxTime = 0.0;
+			timeSincePrinted = 0.0;
+			dt = 0.0;
+			initNeeded = false;
+			//Prevent init from being recorded
+			lastTime = glfwGetTime();
+		} else {
+			if (dt < minTime) {
+				minTime = dt;
+				std::cout << frames << std::endl;
+			}
+			if (dt > maxTime) {
+				maxTime = dt;
+			}
+		}
+		if (timeSincePrinted > RECORD_LENGTH) {
+			float avfps = static_cast<float>(frames) / RECORD_LENGTH;
+			float avms = RECORD_LENGTH / static_cast<float>(frames);
+			std::cout << "Minimum: " << minTime << "ms, Average: " << avms << "ms (" << avfps << "), Maximum: " << maxTime << "ms" << std::endl;
+#ifdef SAVE_TO_FILE
+			//Save data
+			file << sims.front()->csv << ',' << std::to_string(minTime) << ',' << std::to_string(avms) << ',' << std::to_string(maxTime) << std::endl;
+#endif
+			//Next simulation
+			sims.pop();
+			initNeeded = true;
 		}
 
 		//Poll events
 		glfwPollEvents();
+		if (!initNeeded) {
+			//Tell current simulation to draw a frame
+			sims.front()->run(dt);
+			//Track framerate
+			frames++;
+			timeSincePrinted += dt;
 
-		//Tell current simulation to draw a frame
-		sim.run(dt);
-
-		//Render result to screen
-		glUseProgram(quad.getProgram());
-		glBindVertexArray(vertexArray);
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-		glBindVertexArray(0);
-		glfwSwapBuffers(window);
+			//Render result to screen
+			glUseProgram(quad.getProgram());
+			glBindVertexArray(vertexArray);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+			glBindVertexArray(0);
+			glfwSwapBuffers(window);
+		}
 	}
+#ifdef SAVE_TO_FILE
+	file.flush();
+	file.close();
+#endif
 	return 0;
 }

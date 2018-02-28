@@ -163,7 +163,7 @@ void Simulation::init() {
 void Simulation::run(double dt) {
 	//Camera
 	if (autoCamera) {
-		//Update camera position automatically
+		autoUpdateCamera(dt);
 	} else {
 		manualUpdateCamera(dt);
 	}
@@ -242,6 +242,18 @@ void Simulation::manualUpdateCamera(double dt) {
 	}
 	//Because of how I apply the view matrix it must be inverted
 	camMat = glm::inverse(glm::lookAt(camPos, camPos + direction, up));
+}
+
+void Simulation::autoUpdateCamera(double dt) {
+	ang += dt;
+	//glm::vec3 direction = glm::vec3(
+	//	sinf(ang) * dist,
+	//	0.0f,
+	//	cosf(ang) * dist
+	//);
+	//glm::vec3 camPos = centre - direction;
+	glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+	camMat = glm::rotate(glm::mat4(1.0), static_cast<float>(ang), up) * glm::translate(glm::mat4(1), centre) * glm::translate(glm::mat4(1), glm::vec3(0.0f, 0.0f, -dist));
 }
 
 

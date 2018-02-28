@@ -121,10 +121,14 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 			float transmitAmount = 1.0 - reflectAmount;
 			//If object is solid apply phong lighting
 			if (mat.opaque != 0) {
+#ifdef DONT_DRAW_LIGHTS
+				vec3 lightColour = mat.colour;
+#else
 				vec3 lightColour = vec3(0.0, 0.0, 0.0);
 				for(int j=0;j<lights.length(); j++){
 					addLighting(lightColour, lights[j], col, ray.rayDirection);
 				}
+#endif
 #ifdef DRAW_REGGRID
 				pixelColour += lightColour * transmitAmount * ray.contr + col.dbgColour;
 #else

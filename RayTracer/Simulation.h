@@ -27,12 +27,17 @@ public:
 	std::vector<std::string> args;
 	double DENSITY = 1.0;
 	bool autoCamera = false;
+	std::string csv = "";
 private:
 	double horizontalAngle = 3.1415926, verticalAngle = 0.0;
 	bool firstMove = true;
+	double ang = 0.0;
+	float dist = 20.0f;
+	glm::vec3 centre = glm::vec3(0.0f, 3.0f, 0.0f);
 	glm::vec3 camPos;
 	glm::mat4 camMat;
 	void manualUpdateCamera(double dt);
+	void autoUpdateCamera(double dt);
 	void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vector<int>& lists, GLuint id);
 	std::vector<Sphere> spheres;
 	std::vector<Plane> planes;
