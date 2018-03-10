@@ -23,53 +23,6 @@ void Simulation::init() {
 	shader = Shader("shaders/comp.glsl", args);
 
 	//Create test input
-	int numSpheres = 50;
-	float minX = -5.0f;
-	float minY = 0.0f;
-	float minZ = -5.0f;
-	float maxX = 5.0f;
-	float maxY = 10.0f;
-	float maxZ = 5.0f;
-	for (int i = 0; i < numSpheres; i++) {
-		struct Sphere newS;
-		newS.pos = glm::vec3(randF(minX, maxX), randF(minY, maxY), randF(minZ, maxZ));
-		newS.radius = 0.75f;
-		newS.material = 0;
-		spheres.push_back(newS);
-	}
-	{
-		struct Sphere newS;
-		newS.pos = glm::vec3(0.0f, 4.0f, 0.0f);
-		newS.radius = 1.5f;
-		newS.material = 0;
-		spheres.push_back(newS);
-	}
-	{
-		struct Plane newP;
-		newP.pos = glm::vec3(0.0f, 0.0f, 0.0f);
-		newP.norm = glm::vec3(0.0f, 1.0f, 0.0f);
-		newP.material = 0;
-		planes.push_back(newP);
-	}
-	/*{
-	struct Light newL;
-	newL.pos = glm::vec3(0.0f, 4.0f, 0.0f);
-	newL.colour = glm::vec3(1.0f, 1.0f, 1.0f);
-	newL.constant = 1.0f;
-	newL.linear = 0.22f;
-	newL.quadratic = 0.2f;
-	newL.isDirectional = 0.0f;
-	newL.radius = 0.01f;
-	newL.maxDist = 20.0f;
-	lights.push_back(newL);
-	}*/
-	{
-		struct Light newL;
-		newL.pos = glm::vec3(0.0f, -1.0f, 0.0f);
-		newL.colour = glm::vec3(0.3f, 0.3f, 0.3f);
-		newL.isDirectional = 1.0f;
-		lights.push_back(newL);
-	}
 	{
 		struct Material newM;
 		newM.colour = glm::vec3(0.2f, 0.7f, 0.1f);
@@ -93,6 +46,45 @@ void Simulation::init() {
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 	}
+	float minX = -5.0f;
+	float minY = 0.0f;
+	float minZ = -5.0f;
+	float maxX = 5.0f;
+	float maxY = 10.0f;
+	float maxZ = 5.0f;
+	for (int i = 0; i < numSpheres; i++) {
+		struct Sphere newS;
+		newS.pos = glm::vec3(randF(minX, maxX), randF(minY, maxY), randF(minZ, maxZ));
+		newS.radius = 0.75f;
+		newS.material = rand() % materials.size();
+		spheres.push_back(newS);
+	}
+	{
+		struct Plane newP;
+		newP.pos = glm::vec3(0.0f, 0.0f, 0.0f);
+		newP.norm = glm::vec3(0.0f, 1.0f, 0.0f);
+		newP.material = 0;
+		planes.push_back(newP);
+	}
+	for (int i = 0; i < numLights - 1; i++) {
+		struct Light newL;
+		newL.pos = glm::vec3(randF(minX * 2, maxX * 2), randF(minY * 2, maxY * 2), randF(minZ * 2, maxZ * 2));
+		newL.colour = glm::vec3(1.0f, 1.0f, 1.0f);
+		newL.constant = 1.0f;
+		newL.linear = 0.22f;
+		newL.quadratic = 0.2f;
+		newL.isDirectional = 0.0f;
+		newL.radius = 0.01f;
+		newL.maxDist = 20.0f;
+		lights.push_back(newL);
+	}
+	if (numLights > 0) {
+		struct Light newL;
+		newL.pos = glm::vec3(0.0f, -1.0f, 0.0f);
+		newL.colour = glm::vec3(0.3f, 0.3f, 0.3f);
+		newL.isDirectional = 1.0f;
+		lights.push_back(newL);
+	}
 	{
 		struct Triangle newT;
 		newT.v1 = glm::vec3(-10.0f, -20.0f, -10.0f);
@@ -105,48 +97,56 @@ void Simulation::init() {
 	std::cout << "Generated grid (" << grid.size() << " nodes)" << std::endl;
 
 	//Bind test input
-	GLuint sphereSSBO;
-	glGenBuffers(1, &sphereSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(Sphere), &spheres[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, sphereSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-	GLuint gridSSBO;
-	glGenBuffers(1, &gridSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, grid.size() * sizeof(int), &grid[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gridSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-	GLuint listSSBO;
-	glGenBuffers(1, &listSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, listSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, list.size() * sizeof(int), &list[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, listSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-	GLuint planeSSBO;
-	glGenBuffers(1, &planeSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, planeSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, planes.size() * sizeof(Plane), &planes[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, planeSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-	GLuint lightSSBO;
-	glGenBuffers(1, &lightSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, lights.size() * sizeof(Light), &lights[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, lightSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	if (spheres.size() > 0) {
+		GLuint sphereSSBO;
+		glGenBuffers(1, &sphereSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereSSBO);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(Sphere), &spheres[0], GL_STATIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, sphereSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+		GLuint gridSSBO;
+		glGenBuffers(1, &gridSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridSSBO);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, grid.size() * sizeof(int), &grid[0], GL_STATIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gridSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+		GLuint listSSBO;
+		glGenBuffers(1, &listSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, listSSBO);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, list.size() * sizeof(int), &list[0], GL_STATIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, listSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	}
+	if (planes.size() > 0) {
+		GLuint planeSSBO;
+		glGenBuffers(1, &planeSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, planeSSBO);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, planes.size() * sizeof(Plane), &planes[0], GL_STATIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, planeSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	}
+	if (lights.size() > 0) {
+		GLuint lightSSBO;
+		glGenBuffers(1, &lightSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightSSBO);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, lights.size() * sizeof(Light), &lights[0], GL_STATIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, lightSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	}
 	GLuint materialSSBO;
 	glGenBuffers(1, &materialSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, materialSSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, materials.size() * sizeof(Material), &materials[0], GL_STATIC_DRAW);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, materialSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-	GLuint triangleSSBO;
-	glGenBuffers(1, &triangleSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, triangleSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, triangles.size() * sizeof(Triangle), &triangles[0], GL_STATIC_DRAW);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, triangleSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	if (triangles.size() > 0) {
+		GLuint triangleSSBO;
+		glGenBuffers(1, &triangleSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, triangleSSBO);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, triangles.size() * sizeof(Triangle), &triangles[0], GL_STATIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, triangleSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	}
 
 	//Set camera properties
 	camPos = glm::vec3(2.0f, 4.0f, 2.0f);
@@ -167,7 +167,7 @@ void Simulation::run(double dt) {
 	} else {
 		manualUpdateCamera(dt);
 	}
-
+	double t = glfwGetTime();
 	//Execute compute shader
 	glUseProgram(shader.getProgram());
 	glUniformMatrix4fv(glGetUniformLocation(shader.getProgram(), "cameraMatrix"), 1, GL_FALSE, &camMat[0][0]);
@@ -176,6 +176,18 @@ void Simulation::run(double dt) {
 	glDispatchCompute(WIDTH, HEIGHT, 1);
 	//Wait for image to be fully generated
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+	double elapsed = glfwGetTime() - t;
+	frames++;
+	if (frames > 3) {
+		if (elapsed < minTime) {
+			minTime = elapsed;
+		}
+		if (elapsed > maxTime) {
+			maxTime = elapsed;
+		}
+		totalTime += elapsed;
+		avgTime = totalTime / (frames - 3);
+	}
 }
 
 #define MOUSE_SPEED 0.005
@@ -246,12 +258,6 @@ void Simulation::manualUpdateCamera(double dt) {
 
 void Simulation::autoUpdateCamera(double dt) {
 	ang += dt;
-	//glm::vec3 direction = glm::vec3(
-	//	sinf(ang) * dist,
-	//	0.0f,
-	//	cosf(ang) * dist
-	//);
-	//glm::vec3 camPos = centre - direction;
 	glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
 	camMat = glm::rotate(glm::mat4(1.0), static_cast<float>(ang), up) * glm::translate(glm::mat4(1), centre) * glm::translate(glm::mat4(1), glm::vec3(0.0f, 0.0f, -dist));
 }

@@ -124,7 +124,7 @@ void generateQuad(GLuint *vertexArray, GLuint *vertexBuffer, GLuint *textureBuff
 int main() {
 	//Initialise OpenGL
 	init(WIDTH, HEIGHT, "Ray Tracer");
-
+	//initFullscreen("Ray Tracer");
 	//Get number of work groups available
 	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &MAX_WORK_GROUPS[0]);
 	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &MAX_WORK_GROUPS[1]);
@@ -134,8 +134,8 @@ int main() {
 	//Simulation information
 	/* Simulation arguments:
 	 * DRAW_REGGRID - Draws the regular grid containing spheres
-	 * DRAW_REFLECT - Draws reflections in red(?)
-	 * DRAW_REFRACT - Draws refractions in green(?) (Check this is separate)
+	 * DEBUG_REFLECT - Draws reflections in green
+	 * DEBUG_REFRACT - Draws refractions in red
 	 * NUM_SHADOW_RAYS [n] - Number of rays used to check for shadows
 	 * MIN_CONTR [f] - How much a ray must contribute to the pixel colour to be explored
 	 * MAX_RELFECT [n] - Maximum number of relfections calculated per pixel
@@ -148,7 +148,7 @@ int main() {
 	 */
 	std::queue<std::shared_ptr<Simulation>> sims;
 	//Add simulations to run here
-	for(int i = 1; i <= 10; i++) {
+	for (int i = 1; i <= 10; i++) {
 		std::shared_ptr<Simulation> s(new Simulation());
 		s->DENSITY = i * 5.0;
 		s->args = {
@@ -182,15 +182,11 @@ int main() {
 
 	//Timing variables
 	double time = 0, lastTime = 0, dt = 0;
-	int frames = 0;
-	double timeSincePrinted = 0;
-	double minTime = INFINITY;
-	double maxTime = 0;
 #ifdef SAVE_TO_FILE
 	std::ofstream file;
 	file.open("out.csv");
 #endif
-#define RECORD_LENGTH 30.0
+#define RECORD_LENGTH 100
 
 	//Disable VSYNC
 	glfwSwapInterval(0);
@@ -207,30 +203,16 @@ int main() {
 		lastTime = time;
 		if (initNeeded && !sims.empty()) {
 			sims.front()->init();
-			frames = 0;
-			minTime = INFINITY;
-			maxTime = 0.0;
-			timeSincePrinted = 0.0;
 			dt = 0.0;
 			initNeeded = false;
 			//Prevent init from being recorded
 			lastTime = glfwGetTime();
-		} else {
-			if (dt < minTime) {
-				minTime = dt;
-				std::cout << frames << std::endl;
-			}
-			if (dt > maxTime) {
-				maxTime = dt;
-			}
 		}
-		if (timeSincePrinted > RECORD_LENGTH) {
-			float avfps = static_cast<float>(frames) / RECORD_LENGTH;
-			float avms = RECORD_LENGTH / static_cast<float>(frames);
-			std::cout << "Minimum: " << minTime << "ms, Average: " << avms << "ms (" << avfps << "), Maximum: " << maxTime << "ms" << std::endl;
+		if (sims.front()->frames >= RECORD_LENGTH+3) {
+			std::cout << "Minimum: " << sims.front()->minTime << "ms, Average: " << sims.front()->avgTime << "ms (" << (1000.0 / sims.front()->avgTime) << "), Maximum: " << sims.front()->maxTime << "ms" << std::endl;
 #ifdef SAVE_TO_FILE
 			//Save data
-			file << sims.front()->csv << ',' << std::to_string(minTime) << ',' << std::to_string(avms) << ',' << std::to_string(maxTime) << std::endl;
+			file << sims.front()->csv << ',' << std::to_string(sims.front()->minTime) << ',' << std::to_string(sims.front()->avgTime) << ',' << std::to_string(sims.front()->maxTime) << std::endl;
 #endif
 			//Next simulation
 			sims.pop();
@@ -242,9 +224,6 @@ int main() {
 		if (!initNeeded) {
 			//Tell current simulation to draw a frame
 			sims.front()->run(dt);
-			//Track framerate
-			frames++;
-			timeSincePrinted += dt;
 
 			//Render result to screen
 			glUseProgram(quad.getProgram());

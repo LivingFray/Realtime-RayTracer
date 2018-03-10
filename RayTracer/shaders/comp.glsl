@@ -255,6 +255,9 @@ Collision getCollision(vec3 rayOrigin, vec3 rayDirection) {
 #endif
 			for(int i=listStart; i<listEnd; i++){
 				hitSphere = (getSphereCollision(spheres[sphereLists[i]], rayOrigin, rayDirection, c) && c.dist < dda.distToEdge) || hitSphere;
+#ifndef EARLY_GRID_EXIT
+				hitSphere = false;
+#endif
 			}
 		}
 	}
@@ -275,7 +278,6 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 		vec3 rayOrigin;
 		vec3 rayDirection;
 		float contr;
-		//float refIndex;
 	};
 	struct Iteration {
 		AdditionalRay rays[2];
@@ -322,7 +324,11 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 				endRef = 1.0;
 			}
 			//Get the proportion of light that is reflected
+#ifndef IGNORE_FRESNEL
 			float reflectAmount = getFresnel(startRef, endRef, ray.rayDirection, col.norm, mat.reflection);
+#else
+			float reflectAmount = mat.reflection;
+#endif
 			float transmitAmount = 1.0 - reflectAmount;
 			//If object is solid apply phong lighting
 			if (mat.opaque != 0) {

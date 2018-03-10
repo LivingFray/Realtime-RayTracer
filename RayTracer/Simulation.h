@@ -26,8 +26,15 @@ public:
 	Shader shader;
 	std::vector<std::string> args;
 	double DENSITY = 1.0;
+	int numSpheres = 10;
+	int numLights = 1;
 	bool autoCamera = false;
 	std::string csv = "";
+	double minTime = INFINITY;
+	double avgTime = 0.0;
+	double maxTime = 0.0;
+	int frames;
+	double totalTime = 0;
 private:
 	double horizontalAngle = 3.1415926, verticalAngle = 0.0;
 	bool firstMove = true;
