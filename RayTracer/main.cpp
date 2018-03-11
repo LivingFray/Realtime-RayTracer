@@ -148,17 +148,64 @@ int main() {
 	 */
 	std::queue<std::shared_ptr<Simulation>> sims;
 	//Add simulations to run here
-	for (int i = 1; i <= 10; i++) {
-		std::shared_ptr<Simulation> s(new Simulation());
-		s->DENSITY = i * 5.0;
-		s->args = {
-			"DRAW_REGGRID"
-		};
-		s->autoCamera = true;
-		s->csv = std::to_string(s->DENSITY);
-		sims.push(s);
+	//Repeat each experiment because science
+	int REPEATS = 5;
+	for (int i = 1; i <= 20; i++) {
+		for (int j = 0; j < REPEATS; j++) {
+			std::shared_ptr<Simulation> s(new Simulation());
+			s->DENSITY = 1.0;
+			s->numSpheres = 5 * i;
+			s->args = {
+				"MAX_REFLECT 0",
+				"MAX_REFRACT 0"
+			};
+			s->autoCamera = true;
+			s->csv = std::to_string(s->numSpheres);
+			sims.push(s);
+		}
 	}
-
+	for (int i = 1; i <= 10; i++) {
+		for (int j = 0; j < REPEATS; j++) {
+			std::shared_ptr<Simulation> s(new Simulation());
+			s->DENSITY = 1.0;
+			s->numSpheres = 20;
+			s->args = {
+				"MAX_REFLECT " + std::to_string(i),
+				"MAX_REFRACT 0"
+			};
+			s->autoCamera = true;
+			s->csv = std::to_string(i) + ",0";
+			sims.push(s);
+		}
+	}
+	for (int i = 1; i <= 10; i++) {
+		for (int j = 0; j < REPEATS; j++) {
+			std::shared_ptr<Simulation> s(new Simulation());
+			s->DENSITY = 1.0;
+			s->numSpheres = 20;
+			s->args = {
+				"MAX_REFLECT 0",
+				"MAX_REFRACT " + std::to_string(i)
+			};
+			s->autoCamera = true;
+			s->csv = "0," + std::to_string(i);
+			sims.push(s);
+		}
+	}
+	for (int i = 1; i <= 10; i++) {
+		for (int j = 0; j < REPEATS; j++) {
+			std::shared_ptr<Simulation> s(new Simulation());
+			s->DENSITY = 1.0;
+			s->numSpheres = 20;
+			s->args = {
+				"MAX_REFLECT " + std::to_string(i),
+				"MAX_REFRACT " + std::to_string(i)
+			};
+			s->autoCamera = true;
+			s->csv = std::to_string(i) + "," + std::to_string(i);
+			sims.push(s);
+		}
+	}
 	//Set texture output
 	GLuint tex;
 	glGenTextures(1, &tex);
@@ -182,6 +229,7 @@ int main() {
 
 	//Timing variables
 	double time = 0, lastTime = 0, dt = 0;
+	int frames = 0;
 #ifdef SAVE_TO_FILE
 	std::ofstream file;
 	file.open("out.csv");
@@ -206,13 +254,13 @@ int main() {
 			dt = 0.0;
 			initNeeded = false;
 			//Prevent init from being recorded
-			lastTime = glfwGetTime();
+			//lastTime = glfwGetTime();
+			frames = 0;
 		}
-		if (sims.front()->frames >= RECORD_LENGTH+3) {
-			std::cout << "Minimum: " << sims.front()->minTime << "ms, Average: " << sims.front()->avgTime << "ms (" << (1000.0 / sims.front()->avgTime) << "), Maximum: " << sims.front()->maxTime << "ms" << std::endl;
+		if (frames >= RECORD_LENGTH) {
 #ifdef SAVE_TO_FILE
 			//Save data
-			file << sims.front()->csv << ',' << std::to_string(sims.front()->minTime) << ',' << std::to_string(sims.front()->avgTime) << ',' << std::to_string(sims.front()->maxTime) << std::endl;
+			file << sims.front()->csv << std::endl;
 #endif
 			//Next simulation
 			sims.pop();
@@ -223,8 +271,8 @@ int main() {
 		glfwPollEvents();
 		if (!initNeeded) {
 			//Tell current simulation to draw a frame
-			sims.front()->run(dt);
-
+			sims.front()->run(0.167); //Pretend we are running at ~60fps
+			frames++;
 			//Render result to screen
 			glUseProgram(quad.getProgram());
 			glBindVertexArray(vertexArray);

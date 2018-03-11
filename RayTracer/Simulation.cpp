@@ -24,6 +24,7 @@ void Simulation::init() {
 
 	//Create test input
 	{
+		//Opaque green
 		struct Material newM;
 		newM.colour = glm::vec3(0.2f, 0.7f, 0.1f);
 		newM.opaque = 1;
@@ -31,18 +32,25 @@ void Simulation::init() {
 		newM.reflection = 0.0f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
-
+		//Reflective white
 		newM.colour = glm::vec3(1.0f, 1.0f, 1.0f);
 		newM.opaque = 1;
 		newM.refIndex = 1.5;
-		newM.reflection = 0.0f;
+		newM.reflection = 0.7f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
-
+		//Refractive white
 		newM.colour = glm::vec3(1.0f, 1.0f, 1.0f);
 		newM.opaque = 0;
 		newM.refIndex = 1.05;
 		newM.reflection = 0.0f;
+		newM.shininess = 50.0f;
+		materials.push_back(newM);
+		//Reflective, refractive blue
+		newM.colour = glm::vec3(0.0f, 0.3f, 1.0f);
+		newM.opaque = 0;
+		newM.refIndex = 1.05;
+		newM.reflection = 0.5f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 	}
@@ -177,17 +185,7 @@ void Simulation::run(double dt) {
 	//Wait for image to be fully generated
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 	double elapsed = glfwGetTime() - t;
-	frames++;
-	if (frames > 3) {
-		if (elapsed < minTime) {
-			minTime = elapsed;
-		}
-		if (elapsed > maxTime) {
-			maxTime = elapsed;
-		}
-		totalTime += elapsed;
-		avgTime = totalTime / (frames - 3);
-	}
+	csv += ", " + std::to_string(elapsed);
 }
 
 #define MOUSE_SPEED 0.005
