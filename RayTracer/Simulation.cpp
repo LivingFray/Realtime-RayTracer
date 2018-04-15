@@ -53,6 +53,41 @@ void Simulation::init() {
 		newM.reflection = 0.5f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
+		//Reflective red
+		newM.colour = glm::vec3(1.0f, 0.0f, 0.0f);
+		newM.opaque = 1;
+		newM.refIndex = 1.5;
+		newM.reflection = 0.7f;
+		newM.shininess = 50.0f;
+		materials.push_back(newM);
+		//Reflective blue
+		newM.colour = glm::vec3(0.0f, 0.0f, 1.0f);
+		newM.opaque = 1;
+		newM.refIndex = 1.5;
+		newM.reflection = 0.7f;
+		newM.shininess = 50.0f;
+		materials.push_back(newM);
+		//Refelctive green
+		newM.colour = glm::vec3(0.0f, 1.0f, 0.0f);
+		newM.opaque = 1;
+		newM.refIndex = 1.5;
+		newM.reflection = 0.7f;
+		newM.shininess = 50.0f;
+		materials.push_back(newM);
+		//Refelctive orange
+		newM.colour = glm::vec3(1.0f, 0.5f, 0.0f);
+		newM.opaque = 1;
+		newM.refIndex = 1.5;
+		newM.reflection = 0.7f;
+		newM.shininess = 50.0f;
+		materials.push_back(newM);
+		//Reflective yellow
+		newM.colour = glm::vec3(1.0f, 1.0f, 0.0f);
+		newM.opaque = 1;
+		newM.refIndex = 1.5;
+		newM.reflection = 0.7f;
+		newM.shininess = 50.0f;
+		materials.push_back(newM);
 	}
 	float minX = -5.0f;
 	float minY = 0.0f;
@@ -60,18 +95,66 @@ void Simulation::init() {
 	float maxX = 5.0f;
 	float maxY = 10.0f;
 	float maxZ = 5.0f;
-	for (int i = 0; i < numSpheres; i++) {
-		struct Sphere newS;
-		newS.pos = glm::vec3(randF(minX, maxX), randF(minY, maxY), randF(minZ, maxZ));
-		newS.radius = 0.75f;
-		newS.material = rand() % materials.size();
-		spheres.push_back(newS);
+	//for (int i = 0; i < numSpheres; i++) {
+	for (int x = 0; x < numSpheres; x++) {
+		for (int y = 0; y < numSpheres; y++) {
+			for (int z = 0; z < numSpheres; z++) {
+				struct Sphere newS;
+				//newS.pos = glm::vec3(randF(minX, maxX), randF(minY, maxY), randF(minZ, maxZ));
+				newS.pos = glm::vec3(x * 10 - numSpheres * 5, y * 10, z * 10 - numSpheres * 5);
+				newS.radius = 5.0f;
+				//newS.material = rand() % materials.size();
+				newS.material = material;
+				spheres.push_back(newS);
+			}
+		}
 	}
+	//Floor
 	{
 		struct Plane newP;
 		newP.pos = glm::vec3(0.0f, 0.0f, 0.0f);
 		newP.norm = glm::vec3(0.0f, 1.0f, 0.0f);
-		newP.material = 0;
+		newP.material = 4;
+		planes.push_back(newP);
+	}
+	//Ceiling
+	{
+		//struct Plane newP;
+		//newP.pos = glm::vec3(0.0f, 50.0f, 0.0f);
+		//newP.norm = glm::vec3(0.0f, -1.0f, 0.0f);
+		//newP.material = 1;
+		//planes.push_back(newP);
+	}
+	//NegX Wall
+	{
+		struct Plane newP;
+		newP.pos = glm::vec3(-50.0f, 0.0f, 0.0f);
+		newP.norm = glm::vec3(1.0f, 0.0f, 0.0f);
+		newP.material = 5;
+		planes.push_back(newP);
+	}
+	//PosX Wall
+	{
+		struct Plane newP;
+		newP.pos = glm::vec3(50.0f, 0.0f, 0.0f);
+		newP.norm = glm::vec3(-1.0f, 0.0f, 0.0f);
+		newP.material = 6;
+		planes.push_back(newP);
+	}
+	//NegZ Wall
+	{
+		struct Plane newP;
+		newP.pos = glm::vec3(0.0f, 0.0f, -50.0f);
+		newP.norm = glm::vec3(0.0f, 0.0f, 1.0f);
+		newP.material = 7;
+		planes.push_back(newP);
+	}
+	//PosZ Wall
+	{
+		struct Plane newP;
+		newP.pos = glm::vec3(0.0f, 0.0f, 50.0f);
+		newP.norm = glm::vec3(0.0f, 0.0f, -1.0f);
+		newP.material = 8;
 		planes.push_back(newP);
 	}
 	for (int i = 0; i < numLights - 1; i++) {
@@ -88,9 +171,21 @@ void Simulation::init() {
 	}
 	if (numLights > 0) {
 		struct Light newL;
-		newL.pos = glm::vec3(0.0f, -1.0f, 0.0f);
+		newL.pos = glm::normalize(glm::vec3(0.0f, -1.0f, 0.0f));
+		//newL.pos = glm::vec3(0.0f, 4.0f, 0.0f);
 		newL.colour = glm::vec3(0.3f, 0.3f, 0.3f);
+		//newL.colour = glm::vec3(1.0f, 1.0f, 1.0f);
 		newL.isDirectional = 1.0f;
+		//newL.isDirectional = 0.0f;
+		//Magical constants taken from the internet
+		/*
+		newL.constant = 1.0f;
+		newL.linear = 0.07f;
+		newL.quadratic = 0.017f;
+		newL.radius = 0.01f;
+		newL.maxDist = 65.0f;
+		*/
+
 		lights.push_back(newL);
 	}
 	{
@@ -181,7 +276,7 @@ void Simulation::run(double dt) {
 	glUniformMatrix4fv(glGetUniformLocation(shader.getProgram(), "cameraMatrix"), 1, GL_FALSE, &camMat[0][0]);
 	//Ensure data is updated (use all barrier bits because I can't be bothered to check which exact ones I need)
 	glMemoryBarrier(GL_ALL_BARRIER_BITS);
-	glDispatchCompute(WIDTH, HEIGHT, 1);
+	glDispatchCompute(width, height, 1);
 	//Wait for image to be fully generated
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 	double elapsed = glfwGetTime() - t;

@@ -212,6 +212,13 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 			return true;
 		}
 	}
+#ifdef DONT_USE_GRID
+	for(int i = 0; i < spheres.length(); i++){
+		if(hasSphereCollision(spheres[i], rayOrigin, rayDirection, minDist, maxDist)) {
+			return true;
+		}
+	}
+#else
 	//Loop through each sphere
 	int listStart;
 	int listEnd;
@@ -225,6 +232,7 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 			}
 		}
 	}
+#endif
 	//Loop through each triangle
 		for(int i=0; i<triangles.length(); i++){
 		if(hasTriangleCollision(triangles[i], rayOrigin, rayDirection, minDist, maxDist)) {
@@ -242,6 +250,11 @@ Collision getCollision(vec3 rayOrigin, vec3 rayDirection) {
 	//Start with infinite distance collision
 	c.dist = 1.0 / 0.0;
 	c.hit = false;
+#ifdef DONT_USE_GRID
+	for(int i=0; i<spheres.length(); i++) {
+		getSphereCollision(spheres[i], rayOrigin, rayDirection, c);
+	}
+#else
 	//Loop through each sphere
 	int listStart;
 	int listEnd;
@@ -261,6 +274,7 @@ Collision getCollision(vec3 rayOrigin, vec3 rayDirection) {
 			}
 		}
 	}
+#endif
 	//Loop through each plane
 	for(int i=0; i<planes.length(); i++){
 		getPlaneCollision(planes[i], rayOrigin, rayDirection, c);
@@ -330,6 +344,7 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 			float reflectAmount = mat.reflection;
 #endif
 			float transmitAmount = 1.0 - reflectAmount;
+
 			//If object is solid apply phong lighting
 			if (mat.opaque != 0) {
 #ifdef DONT_DRAW_LIGHTS
@@ -378,7 +393,7 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 				nextIter.numRays++;
 			}
 			//Add next iteration to list
-			if(numIterations < MAX_DEPTH) {
+			if(numIterations < MAX_DEPTH && nextIter.numRays > 0) {
 				iterations[numIterations] = nextIter;
 				numIterations++;
 			}

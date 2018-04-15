@@ -8,8 +8,6 @@
 
 #define GROUP_SIZE 1
 
-#define WIDTH 1280
-#define HEIGHT 720
 #define CAMERA_WIDTH 16.0f
 #define CAMERA_HEIGHT 9.0f
 
@@ -28,8 +26,11 @@ public:
 	double DENSITY = 1.0;
 	int numSpheres = 10;
 	int numLights = 1;
+	int material = 0;
 	bool autoCamera = false;
 	std::string csv = "";
+	int width = 1280;
+	int height = 720;
 private:
 	double horizontalAngle = 3.1415926, verticalAngle = 0.0;
 	bool firstMove = true;

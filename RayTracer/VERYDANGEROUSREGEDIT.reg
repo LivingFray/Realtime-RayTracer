@@ -1,0 +1,9 @@
+Windows Registry Editor Version 5.00
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\GraphicsDrivers]
+"PlatformSupportMiracast"=dword:00000001
+"DxgKrnlVersion"=dword:00008001
+"MinDxgKrnlVersion"=dword:00005013
+"UseXPModel"=dword:00000000
+"TdrDelay"=dword:00000078
+"TdrDdiDelay"=dword:00000078
+"TdrLevel"=dword:00000001

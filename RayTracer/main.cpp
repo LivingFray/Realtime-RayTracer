@@ -16,6 +16,8 @@
 #include "Simulation.h"
 #include "Structures.h"
 
+#define WIDTH 1280
+#define HEIGHT 720
 
 //Use dedicated graphics card
 extern "C"
@@ -142,14 +144,29 @@ int main() {
 	 * MAX_REFRACT [n] - Maximum number of refractions calculated per pixel
 	 * MAX_DEPTH [n] - Maximum number of rays a single point can cast
 	 * DONT_DRAW_LIGHTS - Draws shading from light sources (not shadows)
-	 * To be implemented:
 	 * EARLY_GRID_EXIT - Stops traversal of grid after a collision is found
-	 * USE_GRID - Uses a regular grid to traverse sphere collisions
+	 * DONT_USE_GRID - Stop using a regular grid to traverse sphere collisions
 	 */
 	std::queue<std::shared_ptr<Simulation>> sims;
 	//Add simulations to run here
 	//Repeat each experiment because science
 	int REPEATS = 5;
+	/*
+	for (int i = 1; i <= 20; i++) {
+		for (int j = 0; j < REPEATS; j++) {
+			std::shared_ptr<Simulation> s(new Simulation());
+			s->DENSITY = 1.0;
+			s->numSpheres = 5 * i;
+			s->args = {
+				"MAX_REFLECT 0",
+				"MAX_REFRACT 0",
+				"DONT_USE_GRID"
+			};
+			s->autoCamera = true;
+			s->csv = std::to_string(s->numSpheres);
+			sims.push(s);
+		}
+	}
 	for (int i = 1; i <= 20; i++) {
 		for (int j = 0; j < REPEATS; j++) {
 			std::shared_ptr<Simulation> s(new Simulation());
@@ -164,14 +181,19 @@ int main() {
 			sims.push(s);
 		}
 	}
+	*/
 	for (int i = 1; i <= 10; i++) {
 		for (int j = 0; j < REPEATS; j++) {
 			std::shared_ptr<Simulation> s(new Simulation());
-			s->DENSITY = 1.0;
-			s->numSpheres = 20;
+			s->DENSITY = 10.0;
+			s->numSpheres = 4;
+			s->material = 1;
 			s->args = {
 				"MAX_REFLECT " + std::to_string(i),
-				"MAX_REFRACT 0"
+				"MAX_REFRACT 0",
+				"MAX_DEPTH " + std::to_string(i),
+				"DONT_DRAW_LIGHTS",
+				"IGNORE_FRESNEL"
 			};
 			s->autoCamera = true;
 			s->csv = std::to_string(i) + ",0";
@@ -181,31 +203,58 @@ int main() {
 	for (int i = 1; i <= 10; i++) {
 		for (int j = 0; j < REPEATS; j++) {
 			std::shared_ptr<Simulation> s(new Simulation());
-			s->DENSITY = 1.0;
-			s->numSpheres = 20;
+			s->DENSITY = 10.0;
+			s->numSpheres = 4;
+			s->material = 2;
 			s->args = {
 				"MAX_REFLECT 0",
-				"MAX_REFRACT " + std::to_string(i)
+				"MAX_REFRACT " + std::to_string(i),
+				"MAX_DEPTH " + std::to_string(i),
+				"DONT_DRAW_LIGHTS",
+				"IGNORE_FRESNEL"
 			};
 			s->autoCamera = true;
 			s->csv = "0," + std::to_string(i);
 			sims.push(s);
 		}
 	}
+
 	for (int i = 1; i <= 10; i++) {
 		for (int j = 0; j < REPEATS; j++) {
 			std::shared_ptr<Simulation> s(new Simulation());
-			s->DENSITY = 1.0;
-			s->numSpheres = 20;
+			s->DENSITY = 10.0;
+			s->numSpheres = 4;
+			s->material = 3;
 			s->args = {
 				"MAX_REFLECT " + std::to_string(i),
-				"MAX_REFRACT " + std::to_string(i)
+				"MAX_REFRACT " + std::to_string(i),
+				"MAX_DEPTH 255",
+				"DONT_DRAW_LIGHTS",
+				"IGNORE_FRESNEL"
 			};
 			s->autoCamera = true;
 			s->csv = std::to_string(i) + "," + std::to_string(i);
 			sims.push(s);
 		}
 	}
+	/*
+	for (int i = 1; i <= 12; i++) {
+		for (int j = 0; j < REPEATS; j++) {
+			std::shared_ptr<Simulation> s(new Simulation());
+			s->DENSITY = 1.0;
+			s->numSpheres = 20;
+			s->width = 160 * i;
+			s->height = 90 * i;
+			s->args = {
+				"MAX_REFLECT 0",
+				"MAX_REFRACT 0",
+			};
+			s->autoCamera = true;
+			s->csv = std::to_string(s->width) + "," + std::to_string(s->height);
+			sims.push(s);
+		}
+	}
+	*/
 	//Set texture output
 	GLuint tex;
 	glGenTextures(1, &tex);
