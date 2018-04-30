@@ -18,10 +18,11 @@ Simulation::~Simulation() {
 }
 
 void Simulation::init() {
-
+	srand(37);
+	std::cout << "Loading shader" << std::endl;
 	//Create compute shader
 	shader = Shader("shaders/comp.glsl", args);
-
+	std::cout << "Shader loaded" << std::endl;
 	//Create test input
 	{
 		//Opaque green
@@ -89,32 +90,34 @@ void Simulation::init() {
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 	}
-	float minX = -5.0f;
+	float minX = -1.0f;
 	float minY = 0.0f;
-	float minZ = -5.0f;
-	float maxX = 5.0f;
-	float maxY = 10.0f;
-	float maxZ = 5.0f;
-	//for (int i = 0; i < numSpheres; i++) {
-	for (int x = 0; x < numSpheres; x++) {
-		for (int y = 0; y < numSpheres; y++) {
-			for (int z = 0; z < numSpheres; z++) {
+	float minZ = -1.0f;
+	float maxX = 1.0f;
+	float maxY = 2.0f;
+	float maxZ = 1.0f;
+	std::cout << "Adding spheres" << std::endl;
+	for (int i = 0; i < numSpheres; i++) {
+	//for (int x = 0; x < numSpheres; x++) {
+		//for (int y = 0; y < numSpheres; y++) {
+			//for (int z = 0; z < numSpheres; z++) {
 				struct Sphere newS;
-				//newS.pos = glm::vec3(randF(minX, maxX), randF(minY, maxY), randF(minZ, maxZ));
-				newS.pos = glm::vec3(x * 10 - numSpheres * 5, y * 10, z * 10 - numSpheres * 5);
-				newS.radius = 5.0f;
+				newS.pos = glm::vec3(randF(minX, maxX), randF(minY, maxY), randF(minZ, maxZ));
+				//newS.pos = glm::vec3(x * 10 - numSpheres * 5, y * 10, z * 10 - numSpheres * 5);
+				newS.radius = 0.05f;
 				//newS.material = rand() % materials.size();
 				newS.material = material;
 				spheres.push_back(newS);
-			}
-		}
+			//}
+		//}
 	}
+	std::cout << "Spheres added" << std::endl;
 	//Floor
 	{
 		struct Plane newP;
 		newP.pos = glm::vec3(0.0f, 0.0f, 0.0f);
 		newP.norm = glm::vec3(0.0f, 1.0f, 0.0f);
-		newP.material = 4;
+		newP.material = 0;
 		planes.push_back(newP);
 	}
 	//Ceiling
@@ -127,37 +130,38 @@ void Simulation::init() {
 	}
 	//NegX Wall
 	{
-		struct Plane newP;
-		newP.pos = glm::vec3(-50.0f, 0.0f, 0.0f);
-		newP.norm = glm::vec3(1.0f, 0.0f, 0.0f);
-		newP.material = 5;
-		planes.push_back(newP);
+		//struct Plane newP;
+		//newP.pos = glm::vec3(-50.0f, 0.0f, 0.0f);
+		//newP.norm = glm::vec3(1.0f, 0.0f, 0.0f);
+		//newP.material = 5;
+		//planes.push_back(newP);
 	}
 	//PosX Wall
 	{
-		struct Plane newP;
-		newP.pos = glm::vec3(50.0f, 0.0f, 0.0f);
-		newP.norm = glm::vec3(-1.0f, 0.0f, 0.0f);
-		newP.material = 6;
-		planes.push_back(newP);
+		//struct Plane newP;
+		//newP.pos = glm::vec3(50.0f, 0.0f, 0.0f);
+		//newP.norm = glm::vec3(-1.0f, 0.0f, 0.0f);
+		//newP.material = 6;
+		//planes.push_back(newP);
 	}
 	//NegZ Wall
 	{
-		struct Plane newP;
-		newP.pos = glm::vec3(0.0f, 0.0f, -50.0f);
-		newP.norm = glm::vec3(0.0f, 0.0f, 1.0f);
-		newP.material = 7;
-		planes.push_back(newP);
+		//struct Plane newP;
+		//newP.pos = glm::vec3(0.0f, 0.0f, -50.0f);
+		//newP.norm = glm::vec3(0.0f, 0.0f, 1.0f);
+		//newP.material = 7;
+		//planes.push_back(newP);
 	}
 	//PosZ Wall
 	{
-		struct Plane newP;
-		newP.pos = glm::vec3(0.0f, 0.0f, 50.0f);
-		newP.norm = glm::vec3(0.0f, 0.0f, -1.0f);
-		newP.material = 8;
-		planes.push_back(newP);
+		//struct Plane newP;
+		//newP.pos = glm::vec3(0.0f, 0.0f, 50.0f);
+		//newP.norm = glm::vec3(0.0f, 0.0f, -1.0f);
+		//newP.material = 8;
+		//planes.push_back(newP);
 	}
-	for (int i = 0; i < numLights - 1; i++) {
+	//for (int i = 0; i < numLights - 1; i++) {
+	for (int i = 0; i < numLights; i++) {
 		struct Light newL;
 		newL.pos = glm::vec3(randF(minX * 2, maxX * 2), randF(minY * 2, maxY * 2), randF(minZ * 2, maxZ * 2));
 		newL.colour = glm::vec3(1.0f, 1.0f, 1.0f);
@@ -169,7 +173,8 @@ void Simulation::init() {
 		newL.maxDist = 20.0f;
 		lights.push_back(newL);
 	}
-	if (numLights > 0) {
+	//if (numLights > 0) {
+	if (false) {
 		struct Light newL;
 		newL.pos = glm::normalize(glm::vec3(0.0f, -1.0f, 0.0f));
 		//newL.pos = glm::vec3(0.0f, 4.0f, 0.0f);

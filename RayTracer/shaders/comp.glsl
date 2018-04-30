@@ -452,6 +452,18 @@ void addLighting(inout vec3 lightColour, Light l, Collision c, vec3 rayDirection
 		if(!hasCollision(c.pos, lightDir, BIAS, maxDist)){
 			applyLighting(lightColour, lightDir, c.norm, rayDirection, l, m.shininess, m.colour, dist, frac);
 		}
+#else
+#if (NUM_SHADOW_RAYS > 0)
+		float frac;
+		float maxDist;
+		if(l.isDirectional>0.0) {
+			frac = 1.0;
+			maxDist = 1.0 / 0.0;
+			if(!hasCollision(c.pos, lightDir, BIAS, maxDist)){
+				applyLighting(lightColour, lightDir, c.norm, rayDirection, l, m.shininess, m.colour, dist, frac);
+			}
+		}
+#endif
 #endif
 /*
 Range from -LR to +LR

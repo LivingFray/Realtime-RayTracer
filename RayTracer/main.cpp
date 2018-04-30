@@ -151,7 +151,55 @@ int main() {
 	//Add simulations to run here
 	//Repeat each experiment because science
 	int REPEATS = 5;
+	for (float i = 0.5f; i <= 20.0f; i+=0.5f) {
+		for (int j = 0; j < REPEATS; j++) {
+			std::shared_ptr<Simulation> s(new Simulation());
+			s->DENSITY = i;
+			s->numSpheres = 20;
+			s->numLights = i;
+			s->material = 0;
+			s->args = {
+				"DONT_DRAW_LIGHTS",
+				"NUM_SHADOW_RAYS 0",
+				"DRAW_REGGRID"
+			};
+			s->autoCamera = true;
+			s->csv = std::to_string(i);
+			sims.push(s);
+		}
+	}
 	/*
+	for (int i = 0; i < 10; i++) {
+		for (int j = 0; j < REPEATS; j++) {
+			std::shared_ptr<Simulation> s(new Simulation());
+			s->DENSITY = 5.0;
+			s->numSpheres = 20;
+			s->numLights = i;
+			s->material = 0;
+			s->args = {
+			};
+			s->autoCamera = true;
+			s->csv = std::to_string(i);
+			sims.push(s);
+		}
+	}
+	*/
+	/*
+	for (int i = 0; i < 10; i++) {
+		for (int j = 0; j < REPEATS; j++) {
+			std::shared_ptr<Simulation> s(new Simulation());
+			s->DENSITY = 5.0;
+			s->numSpheres = 20;
+			s->numLights = 2;
+			s->material = 0;
+			s->args = {
+				"NUM_SHADOW_RAYS " + std::to_string(i)
+			};
+			s->autoCamera = true;
+			s->csv = std::to_string(i);
+			sims.push(s);
+		}
+	}
 	for (int i = 1; i <= 20; i++) {
 		for (int j = 0; j < REPEATS; j++) {
 			std::shared_ptr<Simulation> s(new Simulation());
@@ -181,7 +229,6 @@ int main() {
 			sims.push(s);
 		}
 	}
-	*/
 	for (int i = 1; i <= 10; i++) {
 		for (int j = 0; j < REPEATS; j++) {
 			std::shared_ptr<Simulation> s(new Simulation());
@@ -218,7 +265,6 @@ int main() {
 			sims.push(s);
 		}
 	}
-
 	for (int i = 1; i <= 10; i++) {
 		for (int j = 0; j < REPEATS; j++) {
 			std::shared_ptr<Simulation> s(new Simulation());
@@ -237,7 +283,6 @@ int main() {
 			sims.push(s);
 		}
 	}
-	/*
 	for (int i = 1; i <= 12; i++) {
 		for (int j = 0; j < REPEATS; j++) {
 			std::shared_ptr<Simulation> s(new Simulation());

@@ -35,8 +35,8 @@ private:
 	double horizontalAngle = 3.1415926, verticalAngle = 0.0;
 	bool firstMove = true;
 	double ang = 0.0;
-	float dist = 20.0f;
-	glm::vec3 centre = glm::vec3(0.0f, 3.0f, 0.0f);
+	float dist = 4.0f;
+	glm::vec3 centre = glm::vec3(0.0f, 0.3f, 0.0f);
 	glm::vec3 camPos;
 	glm::mat4 camMat;
 	void manualUpdateCamera(double dt);
