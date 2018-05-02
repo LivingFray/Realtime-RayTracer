@@ -104,7 +104,7 @@ void Simulation::init() {
 				struct Sphere newS;
 				newS.pos = glm::vec3(randF(minX, maxX), randF(minY, maxY), randF(minZ, maxZ));
 				//newS.pos = glm::vec3(x * 10 - numSpheres * 5, y * 10, z * 10 - numSpheres * 5);
-				newS.radius = 0.05f;
+				newS.radius = 0.25f;
 				//newS.material = rand() % materials.size();
 				newS.material = material;
 				spheres.push_back(newS);
@@ -404,7 +404,7 @@ void Simulation::generateGrid(std::vector<Sphere>& spheres, std::vector<int>& gr
 	float dX = maxX - minX;
 	float dY = maxY - minY;
 	float dZ = maxZ - minZ;
-	float size = pow((DENSITY * spheres.size()) / (dX * dY * dZ), 1 / 3.0f);
+	float size = pow((spheres.size() / DENSITY) / (dX * dY * dZ), 1 / 3.0f);
 	int nX = static_cast<int>(ceil(dX * size));
 	int nY = static_cast<int>(ceil(dY * size));
 	int nZ = static_cast<int>(ceil(dZ * size));

@@ -151,11 +151,11 @@ int main() {
 	//Add simulations to run here
 	//Repeat each experiment because science
 	int REPEATS = 5;
-	for (float i = 0.5f; i <= 20.0f; i+=0.5f) {
+	for (float i = 0.1f; i <= 5.0f; i+=0.1f) {
 		for (int j = 0; j < REPEATS; j++) {
 			std::shared_ptr<Simulation> s(new Simulation());
 			s->DENSITY = i;
-			s->numSpheres = 20;
+			s->numSpheres = 40;
 			s->numLights = i;
 			s->material = 0;
 			s->args = {
