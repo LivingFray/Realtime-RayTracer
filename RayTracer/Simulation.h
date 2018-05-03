@@ -36,9 +36,10 @@ private:
 	bool firstMove = true;
 	double ang = 0.0;
 	float dist = 4.0f;
-	glm::vec3 centre = glm::vec3(0.0f, 0.3f, 0.0f);
+	glm::vec3 centre = glm::vec3(0.0f, 0.5f, 0.0f);
 	glm::vec3 camPos;
 	glm::mat4 camMat;
+	GLuint camMatPos;
 	void manualUpdateCamera(double dt);
 	void autoUpdateCamera(double dt);
 	void generateGrid(std::vector<Sphere>& spheres, std::vector<int>& grid, std::vector<int>& lists, GLuint id);

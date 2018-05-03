@@ -145,7 +145,7 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 #ifdef DONT_DRAW_LIGHTS
 				vec3 lightColour = mat.colour;
 #else
-				vec3 lightColour = vec3(0.0, 0.0, 0.0);
+				vec3 lightColour = AMBIENT;//vec3(0.0, 0.0, 0.0);
 				for(int j=0;j<lights.length(); j++){
 					addLighting(lightColour, lights[j], col, ray.rayDirection);
 				}

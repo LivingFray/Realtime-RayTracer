@@ -159,6 +159,9 @@ Collision getCollision(vec3 rayOrigin, vec3 rayDirection);
 vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection);
 
 float getFresnel(float currentInd, float newInd, vec3 normal, vec3 incident, float reflectivity); 
+#ifndef AMBIENT
+#define AMBIENT vec3(0.1, 0.1, 0.1)
+#endif
 //Adds lighting to the pixel
 void addLighting(inout vec3 lightColour, Light l, Collision c, vec3 rayDirection);
 //Applies lighting to the pixel at 1/fraction the normal brightness
@@ -350,7 +353,7 @@ vec3 getPixelColourReflectAndRefract(vec3 rayOrigin, vec3 rayDirection) {
 #ifdef DONT_DRAW_LIGHTS
 				vec3 lightColour = mat.colour;
 #else
-				vec3 lightColour = vec3(0.0, 0.0, 0.0);
+				vec3 lightColour = AMBIENT;//vec3(0.0, 0.0, 0.0);
 				for(int j=0;j<lights.length(); j++){
 					addLighting(lightColour, lights[j], col, ray.rayDirection);
 				}

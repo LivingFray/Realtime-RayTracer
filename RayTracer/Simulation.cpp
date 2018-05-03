@@ -33,11 +33,11 @@ void Simulation::init() {
 		newM.reflection = 0.0f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
-		//Reflective white
-		newM.colour = glm::vec3(1.0f, 1.0f, 1.0f);
+		//Bright red
+		newM.colour = glm::vec3(1.0f, 0.0f, 0.0f);
 		newM.opaque = 1;
-		newM.refIndex = 1.5;
-		newM.reflection = 0.7f;
+		newM.refIndex = 2.5;
+		newM.reflection = 0.0f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 		//Refractive white
@@ -58,44 +58,44 @@ void Simulation::init() {
 		newM.colour = glm::vec3(1.0f, 0.0f, 0.0f);
 		newM.opaque = 1;
 		newM.refIndex = 1.5;
-		newM.reflection = 0.7f;
+		newM.reflection = 0.05f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 		//Reflective blue
 		newM.colour = glm::vec3(0.0f, 0.0f, 1.0f);
 		newM.opaque = 1;
 		newM.refIndex = 1.5;
-		newM.reflection = 0.7f;
+		newM.reflection = 0.05f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 		//Refelctive green
 		newM.colour = glm::vec3(0.0f, 1.0f, 0.0f);
 		newM.opaque = 1;
 		newM.refIndex = 1.5;
-		newM.reflection = 0.7f;
+		newM.reflection = 0.05f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 		//Refelctive orange
 		newM.colour = glm::vec3(1.0f, 0.5f, 0.0f);
 		newM.opaque = 1;
 		newM.refIndex = 1.5;
-		newM.reflection = 0.7f;
+		newM.reflection = 0.05f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 		//Reflective yellow
 		newM.colour = glm::vec3(1.0f, 1.0f, 0.0f);
 		newM.opaque = 1;
 		newM.refIndex = 1.5;
-		newM.reflection = 0.7f;
+		newM.reflection = 0.05f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 	}
-	float minX = -1.0f;
-	float minY = 0.0f;
-	float minZ = -1.0f;
-	float maxX = 1.0f;
-	float maxY = 2.0f;
-	float maxZ = 1.0f;
+	float minX = -10.0f;
+	float minY = 0.5f;
+	float minZ = -10.0f;
+	float maxX = 10.0f;
+	float maxY = 20.0f;
+	float maxZ = 10.0f;
 	std::cout << "Adding spheres" << std::endl;
 	for (int i = 0; i < numSpheres; i++) {
 	//for (int x = 0; x < numSpheres; x++) {
@@ -104,9 +104,9 @@ void Simulation::init() {
 				struct Sphere newS;
 				newS.pos = glm::vec3(randF(minX, maxX), randF(minY, maxY), randF(minZ, maxZ));
 				//newS.pos = glm::vec3(x * 10 - numSpheres * 5, y * 10, z * 10 - numSpheres * 5);
-				newS.radius = 0.25f;
-				//newS.material = rand() % materials.size();
-				newS.material = material;
+				newS.radius = randF(0.5f, 3.0f);
+				newS.material = rand() % 4;
+				//newS.material = material;
 				spheres.push_back(newS);
 			//}
 		//}
@@ -160,8 +160,8 @@ void Simulation::init() {
 		//newP.material = 8;
 		//planes.push_back(newP);
 	}
-	//for (int i = 0; i < numLights - 1; i++) {
-	for (int i = 0; i < numLights; i++) {
+	for (int i = 0; i < numLights - 1; i++) {
+	//for (int i = 0; i < numLights; i++) {
 		struct Light newL;
 		newL.pos = glm::vec3(randF(minX * 2, maxX * 2), randF(minY * 2, maxY * 2), randF(minZ * 2, maxZ * 2));
 		newL.colour = glm::vec3(1.0f, 1.0f, 1.0f);
@@ -173,8 +173,8 @@ void Simulation::init() {
 		newL.maxDist = 20.0f;
 		lights.push_back(newL);
 	}
-	//if (numLights > 0) {
-	if (false) {
+	if (numLights > 0) {
+	//if (false) {
 		struct Light newL;
 		newL.pos = glm::normalize(glm::vec3(0.0f, -1.0f, 0.0f));
 		//newL.pos = glm::vec3(0.0f, 4.0f, 0.0f);
@@ -263,6 +263,7 @@ void Simulation::init() {
 	glUniform1f(glGetUniformLocation(shader.getProgram(), "cameraWidth"), CAMERA_WIDTH);
 	glUniform1f(glGetUniformLocation(shader.getProgram(), "cameraHeight"), CAMERA_HEIGHT);
 	glUniformMatrix4fv(glGetUniformLocation(shader.getProgram(), "cameraMatrix"), 1, GL_FALSE, &camMat[0][0]);
+	camMatPos = glGetUniformLocation(shader.getProgram(), "cameraMatrix");
 	//Set output image
 	glUniform1i(glGetUniformLocation(shader.getProgram(), "imgOut"), 0);
 	glUseProgram(0);
@@ -275,21 +276,18 @@ void Simulation::run(double dt) {
 	} else {
 		manualUpdateCamera(dt);
 	}
-	double t = glfwGetTime();
 	//Execute compute shader
 	glUseProgram(shader.getProgram());
-	glUniformMatrix4fv(glGetUniformLocation(shader.getProgram(), "cameraMatrix"), 1, GL_FALSE, &camMat[0][0]);
+	glUniformMatrix4fv(camMatPos, 1, GL_FALSE, &camMat[0][0]);
 	//Ensure data is updated (use all barrier bits because I can't be bothered to check which exact ones I need)
 	glMemoryBarrier(GL_ALL_BARRIER_BITS);
 	glDispatchCompute(width, height, 1);
 	//Wait for image to be fully generated
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-	double elapsed = glfwGetTime() - t;
-	csv += ", " + std::to_string(elapsed);
 }
 
 #define MOUSE_SPEED 0.005
-#define CAMERA_SPEED 0.1f
+#define CAMERA_SPEED 1.0f
 
 void Simulation::manualUpdateCamera(double dt) {
 	double mx, my;
@@ -355,7 +353,7 @@ void Simulation::manualUpdateCamera(double dt) {
 }
 
 void Simulation::autoUpdateCamera(double dt) {
-	ang += dt;
+	//ang += dt;
 	glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
 	camMat = glm::rotate(glm::mat4(1.0), static_cast<float>(ang), up) * glm::translate(glm::mat4(1), centre) * glm::translate(glm::mat4(1), glm::vec3(0.0f, 0.0f, -dist));
 }

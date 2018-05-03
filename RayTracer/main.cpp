@@ -121,7 +121,7 @@ void generateQuad(GLuint *vertexArray, GLuint *vertexBuffer, GLuint *textureBuff
 	glBindVertexArray(0);
 }
 
-#define SAVE_TO_FILE
+//#define SAVE_TO_FILE
 
 int main() {
 	//Initialise OpenGL
@@ -150,13 +150,33 @@ int main() {
 	std::queue<std::shared_ptr<Simulation>> sims;
 	//Add simulations to run here
 	//Repeat each experiment because science
+	std::shared_ptr<Simulation> s(new Simulation());
+	s->numSpheres = 10;
+	s->numLights = 1;
+	s->material = 0;
+	s->args = {
+		"NUM_SHADOW_RAYS 1",
+		"MAX_REFLECT 2",
+		"MAX_REFRACT 0",
+		"MAX_DEPTH 2"
+	};
+	s->autoCamera = false;
+	sims.push(s);
+	int widths[12];
+	int heights[12];
+	for (int i = 0; i < 12; i++) {
+		widths[i] = 160 * (i + 1);
+		heights[i] = 90 * (i + 1);
+	}
+	int res = 0;
+	/*
 	int REPEATS = 5;
 	for (float i = 0.1f; i <= 5.0f; i+=0.1f) {
 		for (int j = 0; j < REPEATS; j++) {
 			std::shared_ptr<Simulation> s(new Simulation());
 			s->DENSITY = i;
 			s->numSpheres = 40;
-			s->numLights = i;
+			s->numLights = 1;
 			s->material = 0;
 			s->args = {
 				"DONT_DRAW_LIGHTS",
@@ -168,7 +188,6 @@ int main() {
 			sims.push(s);
 		}
 	}
-	/*
 	for (int i = 0; i < 10; i++) {
 		for (int j = 0; j < REPEATS; j++) {
 			std::shared_ptr<Simulation> s(new Simulation());
@@ -335,10 +354,32 @@ int main() {
 
 	//Hide cursor
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-
+	bool wasPressed = false;
 	bool initNeeded = true;
+	sims.front()->width = widths[res];
+	sims.front()->height = heights[res];
+	glBindTexture(GL_TEXTURE_2D, tex);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, widths[res], heights[res], 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+	glBindImageTexture(0, tex, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 	//Main render loop
 	while (!glfwWindowShouldClose(window) && !glfwGetKey(window, GLFW_KEY_ESCAPE) && !sims.empty()) {
+		if (glfwGetKey(window, GLFW_KEY_SPACE)) {
+			if (!wasPressed) {
+				res = (res + 1) % 12;
+				sims.front()->width = widths[res];
+				sims.front()->height = heights[res];
+				glBindTexture(GL_TEXTURE_2D, tex);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, widths[res], heights[res], 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+				glBindImageTexture(0, tex, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+			}
+			wasPressed = true;
+		} else {
+			wasPressed = false;
+		}
 		//Calculate time elapsed
 		time = glfwGetTime();
 		dt = time - lastTime;
@@ -351,6 +392,8 @@ int main() {
 			//lastTime = glfwGetTime();
 			frames = 0;
 		}
+		//Hack out test mode and allow for infinite exploration
+		frames = 0;
 		if (frames >= RECORD_LENGTH) {
 #ifdef SAVE_TO_FILE
 			//Save data
@@ -365,7 +408,7 @@ int main() {
 		glfwPollEvents();
 		if (!initNeeded) {
 			//Tell current simulation to draw a frame
-			sims.front()->run(0.167); //Pretend we are running at ~60fps
+			sims.front()->run(dt);
 			frames++;
 			//Render result to screen
 			glUseProgram(quad.getProgram());
