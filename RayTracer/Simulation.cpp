@@ -36,22 +36,15 @@ void Simulation::init() {
 		//Bright red
 		newM.colour = glm::vec3(1.0f, 0.0f, 0.0f);
 		newM.opaque = 1;
-		newM.refIndex = 2.5;
+		newM.refIndex = 1.0;
 		newM.reflection = 0.0f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
-		//Refractive white
-		newM.colour = glm::vec3(1.0f, 1.0f, 1.0f);
-		newM.opaque = 0;
-		newM.refIndex = 1.05;
-		newM.reflection = 0.0f;
-		newM.shininess = 50.0f;
-		materials.push_back(newM);
-		//Reflective, refractive blue
+		//Bright blue
 		newM.colour = glm::vec3(0.0f, 0.3f, 1.0f);
-		newM.opaque = 0;
-		newM.refIndex = 1.05;
-		newM.reflection = 0.5f;
+		newM.opaque = 1;
+		newM.refIndex = 1.0;
+		newM.reflection = 0.0f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 		//Reflective red
@@ -68,56 +61,54 @@ void Simulation::init() {
 		newM.reflection = 0.05f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
-		//Refelctive green
+		//Reflective green
 		newM.colour = glm::vec3(0.0f, 1.0f, 0.0f);
 		newM.opaque = 1;
 		newM.refIndex = 1.5;
 		newM.reflection = 0.05f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
-		//Refelctive orange
-		newM.colour = glm::vec3(1.0f, 0.5f, 0.0f);
-		newM.opaque = 1;
-		newM.refIndex = 1.5;
-		newM.reflection = 0.05f;
-		newM.shininess = 50.0f;
-		materials.push_back(newM);
-		//Reflective yellow
-		newM.colour = glm::vec3(1.0f, 1.0f, 0.0f);
-		newM.opaque = 1;
-		newM.refIndex = 1.5;
-		newM.reflection = 0.05f;
+		//Refractive white
+		newM.colour = glm::vec3(1.0f, 1.0f, 1.0f);
+		newM.opaque = 0;
+		newM.refIndex = 1.05;
+		newM.reflection = 0.0f;
 		newM.shininess = 50.0f;
 		materials.push_back(newM);
 	}
-	float minX = -10.0f;
+	float minX = -5.0f;
 	float minY = 0.5f;
-	float minZ = -10.0f;
-	float maxX = 10.0f;
-	float maxY = 20.0f;
-	float maxZ = 10.0f;
+	float minZ = -5.0f;
+	float maxX = 5.0f;
+	float maxY = 8.0f;
+	float maxZ = 5.0f;
 	std::cout << "Adding spheres" << std::endl;
 	for (int i = 0; i < numSpheres; i++) {
-	//for (int x = 0; x < numSpheres; x++) {
-		//for (int y = 0; y < numSpheres; y++) {
-			//for (int z = 0; z < numSpheres; z++) {
-				struct Sphere newS;
-				newS.pos = glm::vec3(randF(minX, maxX), randF(minY, maxY), randF(minZ, maxZ));
-				//newS.pos = glm::vec3(x * 10 - numSpheres * 5, y * 10, z * 10 - numSpheres * 5);
-				newS.radius = randF(0.5f, 3.0f);
-				newS.material = rand() % 4;
-				//newS.material = material;
-				spheres.push_back(newS);
-			//}
-		//}
+		struct Sphere newS;
+		newS.pos = glm::vec3(randF(minX, maxX), randF(minY, maxY), randF(minZ, maxZ));
+		//newS.pos = glm::vec3(x * 10 - numSpheres * 5, y * 10, z * 10 - numSpheres * 5);
+		newS.radius = randF(0.25f, 0.5f);
+		newS.material = rand() % 5;
+		//newS.material = material;
+		spheres.push_back(newS);
 	}
+	//Add Refractive sphere
+	{
+		struct Sphere newS;
+		newS.pos = glm::vec3(0.0f, 2.0f, 0.0f);
+		newS.radius = 1.5f;
+		newS.material = 6;
+		//newS.material = material;
+		spheres.push_back(newS);
+	}
+
 	std::cout << "Spheres added" << std::endl;
 	//Floor
 	{
 		struct Plane newP;
 		newP.pos = glm::vec3(0.0f, 0.0f, 0.0f);
 		newP.norm = glm::vec3(0.0f, 1.0f, 0.0f);
-		newP.material = 0;
+		newP.material = 5;
 		planes.push_back(newP);
 	}
 	//Ceiling
@@ -131,9 +122,9 @@ void Simulation::init() {
 	//NegX Wall
 	{
 		//struct Plane newP;
-		//newP.pos = glm::vec3(-50.0f, 0.0f, 0.0f);
+		//newP.pos = glm::vec3(50.0f, 0.0f, 0.0f);
 		//newP.norm = glm::vec3(1.0f, 0.0f, 0.0f);
-		//newP.material = 5;
+		//newP.material = 6;
 		//planes.push_back(newP);
 	}
 	//PosX Wall
@@ -160,21 +151,22 @@ void Simulation::init() {
 		//newP.material = 8;
 		//planes.push_back(newP);
 	}
-	for (int i = 0; i < numLights - 1; i++) {
-	//for (int i = 0; i < numLights; i++) {
+	//for (int i = 0; i < numLights - 1; i++) {
+	glm::vec3 cols[] = { glm::vec3(1.0, 1.0, 1.0), glm::vec3(1.0, 1.0, 0.0) };
+	for (int i = 0; i < numLights; i++) {
 		struct Light newL;
-		newL.pos = glm::vec3(randF(minX * 2, maxX * 2), randF(minY * 2, maxY * 2), randF(minZ * 2, maxZ * 2));
-		newL.colour = glm::vec3(1.0f, 1.0f, 1.0f);
+		newL.pos = glm::vec3(randF(minX,maxX), 8.0f, randF(minZ, maxZ));
+		newL.colour = cols[i % 2];
 		newL.constant = 1.0f;
-		newL.linear = 0.22f;
-		newL.quadratic = 0.2f;
+		newL.linear = 0.09f;
+		newL.quadratic = 0.032f;
 		newL.isDirectional = 0.0f;
-		newL.radius = 0.01f;
-		newL.maxDist = 20.0f;
+		newL.radius = 0.05f;
+		newL.maxDist = 50.0f;
 		lights.push_back(newL);
 	}
-	if (numLights > 0) {
-	//if (false) {
+	//if (numLights > 0) {
+	if (false) {
 		struct Light newL;
 		newL.pos = glm::normalize(glm::vec3(0.0f, -1.0f, 0.0f));
 		//newL.pos = glm::vec3(0.0f, 4.0f, 0.0f);
@@ -234,10 +226,9 @@ void Simulation::init() {
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 	}
 	if (lights.size() > 0) {
-		GLuint lightSSBO;
 		glGenBuffers(1, &lightSSBO);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightSSBO);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, lights.size() * sizeof(Light), &lights[0], GL_STATIC_DRAW);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, lights.size() * sizeof(Light), &lights[0], GL_DYNAMIC_DRAW);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, lightSSBO);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 	}
@@ -279,6 +270,23 @@ void Simulation::run(double dt) {
 	//Execute compute shader
 	glUseProgram(shader.getProgram());
 	glUniformMatrix4fv(camMatPos, 1, GL_FALSE, &camMat[0][0]);
+	if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS) {
+		lights[0].pos = camPos;
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightSSBO);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, lights.size() * sizeof(Light), &lights[0], GL_DYNAMIC_DRAW);
+		//glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, lightSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	} else if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_4) == GLFW_PRESS) {
+		lightAng += dt;
+		if (lightAng > glm::two_pi<float>()) {
+			lightAng -= glm::two_pi<float>();
+		}
+		lights[0].pos = glm::vec3(cosf(lightAng) * 5.0f, 10.0f, sinf(lightAng) * 5.0f);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightSSBO);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, lights.size() * sizeof(Light), &lights[0], GL_DYNAMIC_DRAW);
+		//glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, lightSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	}
 	//Ensure data is updated (use all barrier bits because I can't be bothered to check which exact ones I need)
 	glMemoryBarrier(GL_ALL_BARRIER_BITS);
 	glDispatchCompute(width, height, 1);
@@ -287,7 +295,7 @@ void Simulation::run(double dt) {
 }
 
 #define MOUSE_SPEED 0.005
-#define CAMERA_SPEED 1.0f
+#define CAMERA_SPEED 0.25f
 
 void Simulation::manualUpdateCamera(double dt) {
 	double mx, my;

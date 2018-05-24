@@ -242,3 +242,4 @@ ModelManifest.xml
 .fake/
 /RayTracer/density.xlsx
 *.csv
+/projectlog.txt

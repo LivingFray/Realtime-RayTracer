@@ -50,5 +50,7 @@ private:
 	std::vector<Triangle> triangles;
 	std::vector<int> grid;
 	std::vector<int> list;
+	GLuint lightSSBO;
+	float lightAng = 0;
 };
 

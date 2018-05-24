@@ -151,14 +151,19 @@ int main() {
 	//Add simulations to run here
 	//Repeat each experiment because science
 	std::shared_ptr<Simulation> s(new Simulation());
-	s->numSpheres = 10;
+	s->numSpheres = 20;
 	s->numLights = 1;
 	s->material = 0;
+	s->DENSITY = 0.25;
 	s->args = {
 		"NUM_SHADOW_RAYS 1",
-		"MAX_REFLECT 2",
-		"MAX_REFRACT 0",
-		"MAX_DEPTH 2"
+		"MAX_REFLECT 1",
+		"MAX_REFRACT 2",
+		"MAX_DEPTH 3",
+		"EARLY_GRID_EXIT",
+		"AMBIENT vec3(0.0, 0.0, 0.0)",
+		"IGNORE_TRIS",
+		"MIN_CONTR 0.05",
 	};
 	s->autoCamera = false;
 	sims.push(s);
@@ -168,7 +173,7 @@ int main() {
 		widths[i] = 160 * (i + 1);
 		heights[i] = 90 * (i + 1);
 	}
-	int res = 0;
+	int res = 4;
 	/*
 	int REPEATS = 5;
 	for (float i = 0.1f; i <= 5.0f; i+=0.1f) {

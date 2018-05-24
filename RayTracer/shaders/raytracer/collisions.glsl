@@ -29,11 +29,13 @@ bool hasCollision(vec3 rayOrigin, vec3 rayDirection, float minDist, float maxDis
 	}
 #endif
 	//Loop through each triangle
+#ifdef INGORE_TRIS
 		for(int i=0; i<triangles.length(); i++){
 		if(hasTriangleCollision(triangles[i], rayOrigin, rayDirection, minDist, maxDist)) {
 			return true;
 		}
 	}
+#endif
 	return false;
 }
 
